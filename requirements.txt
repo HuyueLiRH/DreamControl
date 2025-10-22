@@ -1,0 +1,7 @@
+easydict
+loguru
+rich
+pytorch_kinematics
+numba
+jaxlie
+git+https://github.com/chungmin99/pyroki.git
