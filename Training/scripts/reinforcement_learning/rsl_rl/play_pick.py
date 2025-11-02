@@ -10,12 +10,8 @@
 import argparse
 
 from isaaclab.app import AppLauncher
-# from isaaclab.sensors import CameraCfg, Camera
 import cv2
-# local imports
 import cli_args  # isort: skip
-# from isaaclab.managers import SceneEntityCfg
-# from isaaclab.assets import Articulation, RigidObject
 from grid_cortex_client.cortex_client import CortexClient
 import logging
 import numpy as np
@@ -214,37 +210,16 @@ def main():
             return
     elif args_cli.checkpoint:
         resume_path = retrieve_file_path(args_cli.checkpoint)
-        # import pdb; pdb.set_trace()  # noqa: E702
     else:
-        # print(log_root_path)
         if args_cli.path:
             # if path is provided, use it to get the checkpoint
             resume_path = args_cli.path
         else :
             resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
-        # print(resume_path)
-        # resume_path="/home/azureuser/IsaacLab/logs/rsl_rl/g1_flat/2025-06-28_13-02-05"
-        # resume_path = "/home/azureuser/IsaacLab/logs/rsl_rl/g1_flat/2025-06-25_00-02-35/model_5200.pt"
-        # exit(0)
-        # print("Hahahahahaha")
-        # import pdb; pdb.set_trace()  # noqa: E702
-
+    
     log_dir = os.path.dirname(resume_path)
-    # print(log_dir)
-    # exit(0)
-    # create isaac environment
-    # import pdb; pdb.set_trace()  # noqa: E702
-    # print(env_cfg)
-    # env_cfg.viewer.origin_type = "asset_root"
-    # env_cfg.viewer.asset_name = "robot"
-    # env_cfg.viewer.eye = (-5.,5.,5.)
     env_cfg.viewer.eye = (1.,-2.,2.)
     env_cfg.viewer.lookat = (2., 0., 0.)
-    # print(env_cfg.viewer)
-    # import pdb; pdb.set_trace()  # noqa: E702
-    # exit(0)
-    # env_cfg.viewer.body_name = "right_back_foot"
-    # env_cfg.viewer.asset_name = "robot"
     if args_cli.object_name is not None and args_cli.object_name != "none":
         env_cfg.scene.object.spawn.usd_path = "assets/"+args_cli.object_name+".usd"
 
@@ -253,11 +228,6 @@ def main():
     print("Action space:", env.action_space)
     from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
     print(ISAACLAB_NUCLEUS_DIR)
-    # exit(0)
-    # from pxr import Usd
-    # print(f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd")
-
-    # exit(0)
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv):
         env = multi_agent_to_single_agent(env)
@@ -348,10 +318,7 @@ def main():
             depth = image_robot_depth[0].cpu().numpy()[:,:,:]
             print("Before calling OWL Cortex")
             rgb_resized = cv2.resize(rgb, (512, 384))
-            # import pdb; pdb.set_trace()  # noqa: E702
-            # depth_resized = cv2.resize(depth, (512, 384))
             boxes, scores = call_owl_cortex(rgb_resized, prompt)
-            # import pdb; pdb.set_trace()  # noqa: E702
             if boxes is not None and len(boxes) > 0:
                 print("scores: ", scores)
                 i_max = np.argmax(scores)
@@ -401,16 +368,13 @@ def main():
                     
                     print(f"Average depth over bounding box ({x_min_int}:{x_max_int}, {y_min_int}:{y_max_int}): {depth_value:.2f} mm")
 
-                    # if depth_data[int(mid_y), int(mid_x)] != 0:
                     if depth_value != 0:
                         if mid_x != -1 and mid_y != -1:
                             depth_in_meters = depth_value
                             x_new, y_new, z_new = getXyzInHandFrame(mid_x, mid_y, depth_in_meters, intrinsics)
                             print(f"3D coordinates of the center: ({x_new}, {y_new}, {z_new})")
-                    # import pdb; pdb.set_trace()  # noqa: E702
-
-        # import pdb; pdb.set_trace()  # noqa: E702
-
+        
+        
         for i in range(1):
             video_writers[i].write(image[i].cpu().numpy()[:,:,::-1])
         for i in range(1):

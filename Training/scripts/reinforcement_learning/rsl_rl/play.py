@@ -103,47 +103,21 @@ def main():
             return
     elif args_cli.checkpoint:
         resume_path = retrieve_file_path(args_cli.checkpoint)
-        # import pdb; pdb.set_trace()  # noqa: E702
     else:
-        # print(log_root_path)
         if args_cli.path:
             # if path is provided, use it to get the checkpoint
             resume_path = args_cli.path
         else :
             resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
-        # print(resume_path)
-        # resume_path="/home/azureuser/IsaacLab/logs/rsl_rl/g1_flat/2025-06-28_13-02-05"
-        # resume_path = "/home/azureuser/IsaacLab/logs/rsl_rl/g1_flat/2025-06-25_00-02-35/model_5200.pt"
-        # exit(0)
-        # print("Hahahahahaha")
-        # import pdb; pdb.set_trace()  # noqa: E702
-
+        
     log_dir = os.path.dirname(resume_path)
-    # print(log_dir)
-    # exit(0)
-    # create isaac environment
-    # import pdb; pdb.set_trace()  # noqa: E702
-    # print(env_cfg)
-    # env_cfg.viewer.origin_type = "asset_root"
-    # env_cfg.viewer.asset_name = "robot"
-    # env_cfg.viewer.eye = (-5.,5.,5.)
     env_cfg.viewer.eye = (1.,-5.,5.)
     env_cfg.viewer.lookat = (2., 0., 0.)
-    # print(env_cfg.viewer)
-    # import pdb; pdb.set_trace()  # noqa: E702
-    # exit(0)
-    # env_cfg.viewer.body_name = "right_back_foot"
-    # env_cfg.viewer.asset_name = "robot"
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
     print("Observation space:", env.observation_space)
     print("Action space:", env.action_space)
     from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
     print(ISAACLAB_NUCLEUS_DIR)
-    # exit(0)
-    # from pxr import Usd
-    # print(f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd")
-
-    # exit(0)
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv):
         env = multi_agent_to_single_agent(env)

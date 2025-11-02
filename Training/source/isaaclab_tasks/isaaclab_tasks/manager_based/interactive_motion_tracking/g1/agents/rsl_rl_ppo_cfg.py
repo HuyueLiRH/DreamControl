@@ -43,7 +43,7 @@ class G1FlatPPORunnerCfg(G1RoughPPORunnerCfg):
         super().__post_init__()
 
         self.max_iterations = 1500
-        self.experiment_name = "g1_flat"
+        self.experiment_name = "g1"
         # self.policy.actor_hidden_dims = [256, 128, 128]
         # self.policy.critic_hidden_dims = [256, 128, 128]
         self.policy.actor_hidden_dims = [512, 256, 256]

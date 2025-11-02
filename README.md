@@ -146,7 +146,7 @@ For instance, to run inference on the trained policy for ```Pick``` task, run th
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play_eval.py --task=Isaac-Motion-Tracking-Pick-v0 --headless --video --num_envs 1000 --device cuda:1 
 ```
 
-This will take the latest trained checkpoint for the task in the ```Training/logs/rsl_rl/g1_flat/``` directory and run inference on it. The video will be saved in the same log directory where the training checkpoint was taken from.
+This will take the latest trained checkpoint for the task in the ```Training/logs/rsl_rl/g1/``` directory and run inference on it. The video will be saved in the same log directory where the training checkpoint was taken from.
 
 ## Phase 3: Sim2Real (in progress)
 
@@ -169,10 +169,11 @@ For license information, see the LICENSE file.
 This code is part of the DreamControl paper. If you find this code helpful, please cite the following paper:
 
 ```
-@misc{kalaria2025dreamcontrol,
-    title={DreamControl: Human-Inspired Whole-Body Humanoid Control for Scene Interaction via Guided Diffusion}, 
-    author={Dvij Kalaria and Sudarshan Harithas and Pushkal Katara and Sangkyung Kwak and Sarthak Bhagat and S. Shankar Sastry and Srinath Sridhar and Sai Vemprala and Ashish Kapoor and Jonathan Huang},
-    year={2025}, 
-    arxiv={https://arxiv.org/abs/2509.14353},
+@article{Kalaria2025DreamControlHW,
+  title={DreamControl: Human-Inspired Whole-Body Humanoid Control for Scene Interaction via Guided Diffusion},
+  author={Dvij Kalaria and Sudarshan S. Harithas and Pushkal Katara and Sangkyung Kwak and Sarthak Bhagat and Shankar Sastry and Srinath Sridhar and Sai H. Vemprala and Ashish Kapoor and Jonathan Chung-Kuan Huang},
+  journal={ArXiv},
+  year={2025},
+  volume={abs/2509.14353},
 }
 ```

@@ -10,12 +10,8 @@
 import argparse
 
 from isaaclab.app import AppLauncher
-# from isaaclab.sensors import CameraCfg, Camera
 import cv2
-# local imports
 import cli_args  # isort: skip
-# from isaaclab.managers import SceneEntityCfg
-# from isaaclab.assets import Articulation, RigidObject
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
@@ -76,7 +72,6 @@ OUTPUT_VIDEO = "pick"
 def main():
     """Play with RSL-RL agent."""
     # parse configuration
-    # exit(0)
     env_cfg = parse_env_cfg(
         args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
@@ -103,29 +98,10 @@ def main():
             resume_path = args_cli.path
         else :
             resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
-        # print(resume_path)
-        # resume_path="/home/azureuser/IsaacLab/logs/rsl_rl/g1_flat/2025-06-28_13-02-05"
-        # resume_path = "/home/azureuser/IsaacLab/logs/rsl_rl/g1_flat/2025-06-25_00-02-35/model_5200.pt"
-        # exit(0)
-        # print("Hahahahahaha")
-        # import pdb; pdb.set_trace()  # noqa: E702
-
+        
     log_dir = os.path.dirname(resume_path)
-    # print(log_dir)
-    # exit(0)
-    # create isaac environment
-    # import pdb; pdb.set_trace()  # noqa: E702
-    # print(env_cfg)
-    # env_cfg.viewer.origin_type = "asset_root"
-    # env_cfg.viewer.asset_name = "robot"
-    # env_cfg.viewer.eye = (-5.,5.,5.)
     env_cfg.viewer.eye = (1.,-2.,2.)
     env_cfg.viewer.lookat = (2., 0., 0.)
-    # print(env_cfg.viewer)
-    # import pdb; pdb.set_trace()  # noqa: E702
-    # exit(0)
-    # env_cfg.viewer.body_name = "right_back_foot"
-    # env_cfg.viewer.asset_name = "robot"
     if args_cli.object_name is not None and args_cli.object_name != "none":
         env_cfg.scene.object.spawn.usd_path = "assets/"+args_cli.object_name+".usd"
 
@@ -134,11 +110,6 @@ def main():
     print("Action space:", env.action_space)
     from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
     print(ISAACLAB_NUCLEUS_DIR)
-    # exit(0)
-    # from pxr import Usd
-    # print(f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd")
-
-    # exit(0)
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv):
         env = multi_agent_to_single_agent(env)
