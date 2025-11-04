@@ -28,8 +28,6 @@ pip install jax[cuda12]
 
 Download the following model and place it in `./save/`. 
 
-**HumanML3D**
-
 [model_humanml](https://drive.google.com/file/d/1oTkBtArc3xjqkYD6Id7LksrTOn3e1Zud/view?usp=sharing)
 
 
