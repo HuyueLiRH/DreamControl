@@ -357,5 +357,5 @@ class G1OpenDoorEnvCfg(G1InteractiveBaseEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
-        self.ref_motions_path = "../TrajGen/sample/open_door_sim2"
+        self.ref_motions_path = "../TrajGen/sample/Open_Door_sim2"
         

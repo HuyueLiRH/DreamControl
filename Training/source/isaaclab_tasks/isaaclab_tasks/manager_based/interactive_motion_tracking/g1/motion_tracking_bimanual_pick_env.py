@@ -354,7 +354,7 @@ class G1BimanualPickEnvCfg(G1InteractiveBaseEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
-        self.ref_motions_path = "../TrajGen/sample/bimanual_pick2"
+        self.ref_motions_path = "../TrajGen/sample/Bimanual_Pick_sim2"
         
 
 @configclass
@@ -372,7 +372,7 @@ class G1BimanualPickEnvPlayCfg(ManagerBasedRLEnvCfg):
         super().__post_init__()
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
-        self.ref_motions_path = "../TrajGen/sample/bimanual_pick2"
+        self.ref_motions_path = "../TrajGen/sample/Bimanual_Pick_sim2"
         rot_before = torch.tensor([[0.09735, 0.08964, 0.67139, 0.7292]])
         rot_mat_before = math_utils.matrix_from_quat(rot_before)
         rot_mat_before[:,1,:] = -rot_mat_before[:,1,:]  # flip the y-axis

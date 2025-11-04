@@ -268,7 +268,7 @@ class G1SitEnvCfg(G1InteractiveBaseEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
-        self.ref_motions_path = "../TrajGen/sample/sit3"
+        self.ref_motions_path = "../TrajGen/sample/Sit_sim2"
         
                 
 @configclass
@@ -284,7 +284,7 @@ class G1SitEnvPlayCfg(G1InteractiveBaseEnvCfg):
         super().__post_init__()
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
-        self.ref_motions_path = "../TrajGen/sample/sit3"
+        self.ref_motions_path = "../TrajGen/sample/Sit_sim2"
         self.scene.seat = None
         self.scene.robot = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         print("Robot added")

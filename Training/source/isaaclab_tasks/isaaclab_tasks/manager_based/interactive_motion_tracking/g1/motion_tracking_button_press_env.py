@@ -289,7 +289,7 @@ class G1ButtonPressEnvCfg(G1InteractiveBaseEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
-        self.ref_motions_path = "../TrajGen/sample/button_press_final2"
+        self.ref_motions_path = "../TrajGen/sample/Button_Press_sim2"
 
                 
 
@@ -309,7 +309,7 @@ class G1ButtonPressEnvPlayCfg(G1InteractiveBaseEnvCfg):
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
         self.scene.wall = None
-        self.ref_motions_path = "../TrajGen/sample/button_press_final2"
+        self.ref_motions_path = "../TrajGen/sample/Button_Press_sim2"
 
         self.scene.robot = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         print("Robot added")

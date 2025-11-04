@@ -251,7 +251,7 @@ class G1PunchEnvCfg(G1InteractiveBaseEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
-        self.ref_motions_path = "../TrajGen/sample/punch_final2"
+        self.ref_motions_path = "../TrajGen/sample/Punch_sim2"
                 
 
 @configclass
@@ -268,7 +268,7 @@ class G1PunchPlayEnvCfg(G1InteractiveBaseEnvCfg):
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
         self.scene.terrain = None
-        self.ref_motions_path = "../TrajGen/sample/punch_final2"
+        self.ref_motions_path = "../TrajGen/sample/Punch_sim2"
         self.scene.robot = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         print("Robot added")
         self.decimation = 4

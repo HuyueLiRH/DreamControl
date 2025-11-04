@@ -301,7 +301,7 @@ class G1GroundPickEnvCfg(G1InteractiveBaseEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
-        self.ref_motions_path = "../TrajGen/sample/pick_from_ground3"
+        self.ref_motions_path = "../TrajGen/sample/Ground_Pick_sim2"
         
                 
 
@@ -318,7 +318,7 @@ class G1GroundPickEnvPlayCfg(G1InteractiveBaseEnvCfg):
         # post init of parent
         super().__post_init__()
         self.scene.terrain = None
-        self.ref_motions_path = "../TrajGen/sample/pick_from_ground3"
+        self.ref_motions_path = "../TrajGen/sample/Ground_Pick_sim2"
         self.scene.robot = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         print("Robot added")
         self.decimation = 4
@@ -341,7 +341,7 @@ class G1GroundPickEnvPlayCfg(G1InteractiveBaseEnvCfg):
                                           convention="opengl"
                                       ),)
         # self.scene.kitchen.init_state.pos = (2.55, 0, 0.38)
-        self.ref_motions_path = "../TrajGen/sample/pick_from_ground3"
+        self.ref_motions_path = "../TrajGen/sample/Ground_Pick_sim2"
         self.scene.terrain = None
         self.scene.sky_light = None
         

@@ -141,4 +141,4 @@ submit.sh
 scripts_/
 
 # HumanMl3D
-dataset/HumanML3D/
+!dataset/HumanML3D/*

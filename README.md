@@ -29,7 +29,7 @@ DreamControl is a ***scalable system*** for learning human-inspired whole-body h
 
 ## TODO
 - [x] Release DreamControl training code with generated reference trajectories 
-- [ ] Release reference trajectory generation code
+- [x] Release reference trajectory generation code
 - [ ] Release Sim2Real code
 
 ## Table of Contents
@@ -64,11 +64,6 @@ pip install --upgrade pip
 pip install 'isaacsim[all,extscache]==4.5.0' --extra-index-url https://pypi.nvidia.com
 ```
 
-Check that the simulator runs as expected:-
-```bash
-isaacsim 
-```
-
 ### Install dependencies for DreamControl
 
 Install dependencies:-
@@ -101,7 +96,9 @@ pip install -r requirements.txt
 
 ## Phase 1: Generate reference trajectories
 
-All generated trajectories are in `TrajGen/sample/` folder. These trajectories are used to train the RL policy. The organized code to generate these trajectories will be released soon.
+NOTE: All generated trajectories are in `TrajGen/sample/` folder. These trajectories are used to train the RL policy. You may skip this step if you want to directly use these generated trajectories for training.
+
+Instructions to generate reference trajectories are in `TrajGen/README.md` file.
 
 ## Phase 2: RL training
 
@@ -109,10 +106,10 @@ All training environment definitions are in [Training/source/isaaclab_tasks/isaa
 
 ```bash
 cd Training
-./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Motion-Tracking-<TASK NAME>-v0 --headless --device cuda:1
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Motion-Tracking-<TASK-NAME>-v0 --headless --device cuda:1
 ```
 
-```TASK NAME``` can be one of the following:-
+```TASK-NAME``` can be one of the following:-
 ```
 - Pick
 - Bimanual-Pick

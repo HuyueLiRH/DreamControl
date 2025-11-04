@@ -198,41 +198,7 @@ def main():
     with open(npy_path.replace('.npy', '_len.txt'), 'w') as fw:
         fw.write('\n'.join([str(l) for l in all_lengths]))
 
-    exit(0)
-    print(f"saving visualizations to [{out_path}]...")
-    skeleton = paramUtil.kit_kinematic_chain if args.dataset == 'kit' else paramUtil.t2m_kinematic_chain
-
-    sample_files = []
-    num_samples_in_out_file = 7
-
-    sample_print_template, row_print_template, all_print_template, \
-    sample_file_template, row_file_template, all_file_template = construct_template_variables(args.unconstrained)
-
-    for sample_i in range(args.num_samples):
-        rep_files = []
-        for rep_i in range(args.num_repetitions):
-            caption = all_text[rep_i*args.batch_size + sample_i]
-            length = all_lengths[rep_i*args.batch_size + sample_i]
-            motion = all_motions[rep_i*args.batch_size + sample_i].transpose(2, 0, 1)[:length]
-            if 'hint' in model_kwargs['y']:
-                hint = all_hint_for_vis[rep_i*args.batch_size + sample_i]
-            else:
-                hint = None
-            save_file = sample_file_template.format(sample_i, rep_i)
-            print(sample_print_template.format(caption, sample_i, rep_i, save_file))
-            animation_save_path = os.path.join(out_path, save_file)
-            print(animation_save_path)
-            plot_3d_motion(animation_save_path, skeleton, motion, dataset=args.dataset, title=caption, fps=fps, hint=hint)
-            # Credit for visualization: https://github.com/EricGuo5513/text-to-motion
-            rep_files.append(animation_save_path)
-
-        sample_files = save_multiple_samples(args, out_path,
-                                               row_print_template, all_print_template, row_file_template, all_file_template,
-                                               caption, num_samples_in_out_file, rep_files, sample_files, sample_i)
-
-    abs_path = os.path.abspath(out_path)
-    print(f'[Done] Results are at [{abs_path}]')
-
+    
 
 def save_multiple_samples(args, out_path, row_print_template, all_print_template, row_file_template, all_file_template,
                           caption, num_samples_in_out_file, rep_files, sample_files, sample_i):

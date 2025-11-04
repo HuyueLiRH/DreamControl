@@ -262,7 +262,7 @@ class G1KickEnvCfg(G1InteractiveBaseEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
-        self.ref_motions_path = "../TrajGen/sample/kick_final2"
+        self.ref_motions_path = "../TrajGen/sample/Kick_sim2"
 
 @configclass
 class G1KickEnvPlayCfg(G1InteractiveBaseEnvCfg):
@@ -277,7 +277,7 @@ class G1KickEnvPlayCfg(G1InteractiveBaseEnvCfg):
         super().__post_init__()
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
-        self.ref_motions_path = "../TrajGen/sample/kick_final2"
+        self.ref_motions_path = "../TrajGen/sample/Kick_sim2"
         self.scene.robot = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.decimation = 4
         self.episode_length_s = 10.0

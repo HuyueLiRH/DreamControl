@@ -435,7 +435,7 @@ class G1PickEnvCfg(G1InteractiveBaseEnvCfg):
         # post init of parent
         super().__post_init__()
         self.scene.kitchen.init_state.pos = (2.55, 0, 0.4)
-        self.ref_motions_path = "../TrajGen/sample/pick_final2"
+        self.ref_motions_path = "../TrajGen/sample/Pick_sim2"
 
 
 
@@ -475,7 +475,7 @@ class G1PickPlayEnvCfg(G1InteractiveBaseEnvCfg):
                                           rot=rot_quat,
                                           convention="opengl"
                                       ),)
-        self.ref_motions_path = "../TrajGen/sample/pick_final2"
+        self.ref_motions_path = "../TrajGen/sample/Pick_sim2"
         self.scene.terrain = None
         self.scene.sky_light = None
         
