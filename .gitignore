@@ -14,7 +14,7 @@
 **/*.usdc
 **/*.usdz
 
-# Keep usd files in /home/dvij/isaaclab-sparky/HumanoidVerse/humanoidverse/data/robots/g1
+# Keep usd files in Training/HumanoidVerse/humanoidverse/data/robots/g1
 !Training/HumanoidVerse/humanoidverse/data/robots/g1/*.usd
 
 !Training/source/isaaclab/isaaclab/utils/datasets*
