@@ -19,7 +19,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab_tasks.manager_based.interactive_motion_tracking.g1.motion_tracking_interactive_base import G1InteractiveBaseEnvCfg, touch_goal, object_approach_reward_right, rel_pose_object, TerminationsCfg as TerminationsCfgBase, ActionsCfg as ActionsCfgBase, MySceneCfg as MySceneCfgBase
+from isaaclab_tasks.manager_based.interactive_motion_tracking.g1.motion_tracking_interactive_base import G1InteractiveBaseEnvCfg, touch_goal, object_approach_reward_right, rel_pose_object, TerminationsCfg as TerminationsCfgBase, ActionsCfg as ActionsCfgBase, MySceneCfg as MySceneCfgBase, G1Rewards as G1RewardsBase
 from isaaclab_assets import G1_MINIMAL_CFG  # isort: skip
 from isaaclab_tasks.utils.motion_lib.motion_lib_base import JointNamesOrder
 
@@ -103,7 +103,7 @@ KEYPTS_MASK = [
 
 
 @configclass
-class G1Rewards():
+class G1Rewards(G1RewardsBase):
     """Reward terms for the MDP."""
 
     # task terms

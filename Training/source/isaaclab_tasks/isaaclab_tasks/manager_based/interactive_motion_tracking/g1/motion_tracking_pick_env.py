@@ -25,7 +25,7 @@ from isaaclab.sensors import CameraCfg
 from isaac_utils.rotations import(
     slerp,
 )
-from isaaclab_tasks.manager_based.interactive_motion_tracking.g1.motion_tracking_interactive_base import G1InteractiveBaseEnvCfg, hand_state_target, hand_state_target_1, rel_pose_object_w_link, object_above_threshold, reset_object_state, rel_pose_object, hand_pose, G1Rewards as G1RewardsBase, TerminationsCfg as TerminationsCfgBase, ActionsCfg as ActionsCfgBase, MySceneCfg as MySceneCfgBase
+from isaaclab_tasks.manager_based.interactive_motion_tracking.g1.motion_tracking_interactive_base import G1InteractiveBaseEnvCfg, hand_state_target, hand_state_target_1, rel_pose_object_w_link, object_above_threshold, reset_object_state, rel_pose_object, hand_pose, G1Rewards as G1RewardsBase, TerminationsCfg as TerminationsCfgBase, ActionsCfg as ActionsCfgBase, MySceneCfg as MySceneCfgBase, EventCfg as EventCfgBase
 from isaaclab_assets import G1_MINIMAL_CFG  # isort: skip
 from isaaclab_tasks.utils.motion_lib.motion_lib_base import JointNamesOrder
 
@@ -109,7 +109,7 @@ KEYPTS_MASK = [
 
         
 @configclass
-class EventCfg:
+class EventCfg(EventCfgBase):
     """Configuration for events."""
 
     add_object_mass = EventTerm(

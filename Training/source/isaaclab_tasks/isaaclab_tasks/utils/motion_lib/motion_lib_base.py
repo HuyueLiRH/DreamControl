@@ -101,7 +101,7 @@ class MotionLibBase():
         
         self._num_unique_motions = len(self._motion_data_list)
         if self.mode == MotionlibMode.directory:
-            print(self._motion_data_load[0])
+            # print(self._motion_data_load[0])
             # import pdb; pdb.set_trace()
             self._motion_data_list = []
             for i in range(len(self._motion_data_load)):
