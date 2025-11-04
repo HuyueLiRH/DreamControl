@@ -96,9 +96,9 @@ pip install -r requirements.txt
 
 ## Phase 1: Generate reference trajectories
 
-NOTE: All generated trajectories are in `TrajGen/sample/` folder. These trajectories are used to train the RL policy. You may skip this step if you want to directly use these generated trajectories for training.
+NOTE: All generated trajectories are in [TrajGen/sample/](https://github.com/GenRobo/DreamControl/tree/main/TrajGen/sample) folder. These trajectories are used to train the RL policy. You may skip this step if you want to directly use these generated trajectories for training.
 
-Instructions to generate reference trajectories are in `TrajGen/README.md` file.
+Instructions to generate reference trajectories are in [TrajGen/README.md](https://github.com/GenRobo/DreamControl/tree/main/TrajGen/README.md) file.
 
 ## Phase 2: RL training
 
