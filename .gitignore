@@ -91,3 +91,5 @@ TrajGen/motions*/*
 .aws/
 .vscode/
 .github/
+
+!Training/assets/*.usd
