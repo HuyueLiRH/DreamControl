@@ -39,9 +39,9 @@ DreamControl is a ***scalable system*** for learning human-inspired whole-body h
 ## Table of Contents
 
 1. [Setup](#setup)
-2. [Phase 1: Generate reference trajectories (in progress)](#phase-1-generate-reference-trajectories)
+2. [Phase 1: Generate reference trajectories](#phase-1-generate-reference-trajectories)
 3. [Phase 2: RL training](#phase-2-rl-training)
-4. [Phase 3: Sim2Real (in progress)](#phase-3-sim2real)
+4. [Phase 3: Sim2Real](#phase-3-sim2real)
 5. [Acknowledgement](#acknowledgement)
 6. [License](#license)
 7. [Citation](#citation)
