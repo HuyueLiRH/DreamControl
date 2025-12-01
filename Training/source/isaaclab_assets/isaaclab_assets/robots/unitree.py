@@ -521,9 +521,12 @@ G1_CFG_FIXED_BASE = ArticulationCfg(
 
 
 G1_MINIMAL_CFG = G1_CFG.copy()
-# print()
 G1_MINIMAL_CFG.spawn.usd_path = "HumanoidVerse/humanoidverse/data/robots/g1/g1_27dof_with_hands_min_collisions_flat_white.usd"
 # G1_MINIMAL_CFG.spawn.usd_path = "/home/azureuser/IsaacLab/HumanoidVerse/humanoidverse/data/robots/g1/g1_27dof.usd"
+
+G1_MINIMAL_CFG_FIXED_BASE = G1_CFG.copy()
+G1_MINIMAL_CFG_FIXED_BASE.spawn.usd_path = "HumanoidVerse/humanoidverse/data/robots/g1/g1_27dof_with_hands_min_collisions_flat_white.usd"
+G1_MINIMAL_CFG_FIXED_BASE.spawn.articulation_props.fix_root_link = True
 
 """Configuration for the Unitree G1 Humanoid robot with fewer collision meshes.
 
