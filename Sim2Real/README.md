@@ -1,4 +1,4 @@
-# Hardware deployment for DreamControl
+# Hardware deployment of DreamControl
 
 
 ## Setup environment
