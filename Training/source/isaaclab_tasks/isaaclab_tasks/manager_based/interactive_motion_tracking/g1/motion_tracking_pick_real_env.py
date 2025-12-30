@@ -22,6 +22,7 @@ from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab_tasks.manager_based.interactive_motion_tracking.g1.motion_tracking_interactive_base_real import target_z, hand_state_target, hand_state_target_1, keypts_deviation_ref_l2, position_tracking_error, velocity_error, G1InteractiveBaseEnvCfg, object_above_threshold, reset_object_state, object_approach_reward_left, object_approach_reward_right, rel_pose_object, hand_pose, target_orientation, G1Rewards as G1RewardsBase, TerminationsCfg as TerminationsCfgBase, ActionsCfg as ActionsCfgBase, EventCfg as EventCfgBase, MySceneCfg as MySceneCfgBase
+
 from isaaclab_assets import G1_MINIMAL_CFG  # isort: skip
 from isaaclab_tasks.utils.motion_lib.motion_lib_base import JointNamesOrder
 
@@ -145,8 +146,8 @@ class G1Rewards(G1RewardsBase):
     
     object_above_threshold = RewTerm(
         func=object_above_threshold,
-        weight=1.0,
-        params={"asset_cfg": SceneEntityCfg("object")}
+        weight=.1,
+        params={"height_thres": 1.05, "fall_thres": 1.01}
     )
 
     
@@ -157,6 +158,19 @@ class TerminationsCfg(TerminationsCfgBase):
         func=root_below_threshold)
     torso_angle_below_threshold = DoneTerm(
         func=root_angle_below_threshold)
+    base_contact = DoneTerm(
+            func=mdp.illegal_contact,
+            params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=["pelvis","torso_link","waist_yaw_link","waist_roll_link","left_shoulder_pitch_link","right_shoulder_pitch_link",
+                                                                            "left_wrist_yaw_link", "right_wrist_yaw_link",
+                                                                            "left_hand_index_0_link", "right_hand_index_0_link",
+                                                                            "left_hand_index_1_link", "right_hand_index_1_link",
+                                                                            "left_hand_middle_0_link", "right_hand_middle_0_link",
+                                                                            "left_hand_middle_1_link", "right_hand_middle_1_link",
+                                                                            "left_hand_thumb_0_link", "right_hand_thumb_0_link",
+                                                                            "left_hand_thumb_1_link", "right_hand_thumb_1_link",
+                                                                            "left_hand_thumb_2_link", "right_hand_thumb_2_link",
+                                                    ]), "threshold": 1.0},
+        )
     
 @configclass
 class CommandsCfg_eval:
@@ -200,7 +214,7 @@ class ObservationsCfg:
         actions = ObsTerm(func=mdp.last_action)
         curr_time = ObsTerm(func=current_time_enc)       
 
-        rel_pose_object = ObsTerm(func=rel_pose_object, params={"fix_height": True})
+        rel_pos_object = ObsTerm(func=rel_pose_object, params={"fix_height": True, "only_pos": True})
 
 
         right_hand_state_target_val = ObsTerm(
@@ -260,6 +274,22 @@ class MySceneCfg(MySceneCfgBase):
         ),  
     )
 
+    platform = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Platform",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.31+1./2., 0, 0.9/2.), rot=(1., 0., 0., 0.)),
+        spawn=sim_utils.CuboidCfg(
+            size=(1., 2., 0.9),collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0., 0.6, 0.2), metallic=0.3),
+            physics_material=sim_utils.RigidBodyMaterialCfg(
+                friction_combine_mode="max",
+                restitution_combine_mode="min",
+                static_friction=0.9,
+                dynamic_friction=0.9,
+                restitution=0.0,
+            ))
+    )
+    
+
 
 
 @configclass
@@ -282,7 +312,7 @@ class G1PickRealEnvCfg(G1InteractiveBaseEnvCfg):
         
         self.scene.robot = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.decimation = 4
-        self.episode_length_s = 15.0
+        self.episode_length_s = 10.0
         self.sim.dt = 0.005
 
 @configclass

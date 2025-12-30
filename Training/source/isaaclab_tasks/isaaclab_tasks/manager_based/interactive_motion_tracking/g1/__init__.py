@@ -11,6 +11,17 @@ from . import agents
 # Register Gym environments.
 ##
 
+gym.register(
+    id="Isaac-Motion-Tracking-Hit-Target-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.motion_tracking_hit_target_env:G1HitTargetEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPORunnerCfg",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_flat_ppo_cfg.yaml",
+    },
+)
+
 
 gym.register(
     id="Isaac-Motion-Tracking-Pick-v0",

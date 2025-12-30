@@ -149,7 +149,7 @@ if __name__ == "__main__":
                 sin_phase = np.sin(2 * np.pi * phase)
                 right_hand_state = (count > pick_time) * 1.0
                 right_hand_state_1 = (count < pick_time + 0.7) * (count > pick_time - 0.7) * 1.0
-                print(right_hand_state, right_hand_state_1)
+                # print(right_hand_state, right_hand_state_1)
                 obs[:3] = omega
                 obs[3:3+3] = gravity_orientation
                 obs[3+3:3+3+len(active_joint_ids)] = qj

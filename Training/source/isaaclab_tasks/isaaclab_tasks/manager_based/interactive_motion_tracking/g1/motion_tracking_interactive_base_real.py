@@ -512,7 +512,7 @@ def target_z(env: ManagerBasedRLEnv, action_name: str | None = None) -> torch.Te
         return root_pos_robot_local
 
 
-def rel_pose_object(env: ManagerBasedRLEnv, action_name: str | None = None, fix_height: bool = False, fix_rel_base_height: bool = False, base_height: float = 0.793) -> torch.Tensor:
+def rel_pose_object(env: ManagerBasedRLEnv, action_name: str | None = None, fix_height: bool = False, fix_rel_base_height: bool = False, base_height: float = 0.793, only_pos: bool = False) -> torch.Tensor:
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
     asset: RigidObject = env.scene[asset_cfg.name]
     root_pos_robot = asset.data.root_pos_w - env.scene.env_origins
@@ -535,8 +535,9 @@ def rel_pose_object(env: ManagerBasedRLEnv, action_name: str | None = None, fix_
             root_pos_robot_local = math_utils.quat_apply(
                 math_utils.quat_conjugate(root_rot_robot), root_pos - init_root_pos_robot)
         else :
+            init_root_pos_robot = root_pos_robot.clone()*0.
             root_pos_robot_local = math_utils.quat_apply(
-                math_utils.quat_conjugate(root_rot_robot), root_pos - root_pos_robot)
+                math_utils.quat_conjugate(root_rot_robot), root_pos - init_root_pos_robot)
         root_rot_robot_local = math_utils.quat_mul(
             math_utils.quat_conjugate(root_rot_robot), root_rot)
         
@@ -546,7 +547,10 @@ def rel_pose_object(env: ManagerBasedRLEnv, action_name: str | None = None, fix_
         if "object_pose" in env.command_manager.active_terms:
             root_pos_robot_local = env.command_manager.get_command("object_pose")[:, :3]
         
-        target_ref_tensor = torch.cat([root_pos_robot_local, root_rot_robot_local], dim=-1)
+        if only_pos:
+            target_ref_tensor = root_pos_robot_local
+        else:
+            target_ref_tensor = torch.cat([root_pos_robot_local, root_rot_robot_local], dim=-1)
         
         return target_ref_tensor
 

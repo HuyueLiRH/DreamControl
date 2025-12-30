@@ -7,7 +7,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
-from isaaclab_tasks.manager_based.motion_tracking.g1.motion_tracking_env import reset_joints_for_motion, reset_root_state_for_motion, right_hand_state_target, right_hand_state_target_1, current_time_enc
+from isaaclab_tasks.manager_based.motion_tracking.g1.motion_tracking_env import reset_joints_for_motion, reset_root_state_for_motion, right_hand_state_target, current_time_enc
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise

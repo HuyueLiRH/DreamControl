@@ -253,6 +253,21 @@ class MySceneCfg(MySceneCfgBase):
         ),  
     )
 
+    platform = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Platform",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.31+1./2., 0, 0.9/2.), rot=(1., 0., 0., 0.)),
+        spawn=sim_utils.CuboidCfg(
+            size=(1., 2., 0.9),collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0., 0.6, 0.2), metallic=0.3),
+            physics_material=sim_utils.RigidBodyMaterialCfg(
+                friction_combine_mode="max",
+                restitution_combine_mode="min",
+                static_friction=0.9,
+                dynamic_friction=0.9,
+                restitution=0.0,
+            ))
+    )
+
 
 
 @configclass
