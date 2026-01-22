@@ -21,7 +21,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab_tasks.manager_based.interactive_motion_tracking.g1.motion_tracking_interactive_base_real import target_z, hand_state_target, hand_state_target_1, keypts_deviation_ref_l2, position_tracking_error, velocity_error, G1InteractiveBaseEnvCfg, object_above_threshold, reset_object_state, object_approach_reward_left, object_approach_reward_right, rel_pose_object, hand_pose, target_orientation, G1Rewards as G1RewardsBase, TerminationsCfg as TerminationsCfgBase, ActionsCfg as ActionsCfgBase, EventCfg as EventCfgBase, MySceneCfg as MySceneCfgBase
+from isaaclab_tasks.manager_based.interactive_motion_tracking.g1.motion_tracking_interactive_base_real import target_z, hand_state_target, hand_state_target_1, keypts_deviation_ref_l2, position_tracking_error, velocity_error, G1InteractiveBaseEnvCfg, object_above_threshold, reset_object_state, object_approach_reward_left, object_approach_reward_right, rel_pose_object, hand_pose, target_orientation, global_pos, G1Rewards as G1RewardsBase, TerminationsCfg as TerminationsCfgBase, ActionsCfg as ActionsCfgBase, EventCfg as EventCfgBase, MySceneCfg as MySceneCfgBase
 
 from isaaclab_assets import G1_MINIMAL_CFG  # isort: skip
 from isaaclab_tasks.utils.motion_lib.motion_lib_base import JointNamesOrder
@@ -120,11 +120,11 @@ class G1Rewards(G1RewardsBase):
     joint_deviation_ref = RewTerm(
         func=joint_deviation_ref_l1,
         weight=-0.2,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JointNamesOrder, preserve_order=True)})
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JointNamesOrder, preserve_order=True), "joint_mask": JOINTS_MASK})
     
     keypts_deviation_ref = RewTerm(
         func=keypts_deviation_ref_l2,
-        weight=-0.05,
+        weight=-0.2,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=JointNamesOrder, preserve_order=True)})
     
 
@@ -136,7 +136,7 @@ class G1Rewards(G1RewardsBase):
 
     velocity_error = RewTerm(
         func=velocity_error,
-        weight=-.1,
+        weight=-.3,
         params={"asset_cfg": SceneEntityCfg("robot")}
     )
 
@@ -147,7 +147,7 @@ class G1Rewards(G1RewardsBase):
     object_above_threshold = RewTerm(
         func=object_above_threshold,
         weight=.1,
-        params={"height_thres": 1.05, "fall_thres": 1.01}
+        params={"height_thres": 0.98, "fall_thres": 0.95}
     )
 
     
@@ -201,21 +201,21 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.02, n_max=0.02))
         projected_gravity = ObsTerm(
             func=mdp.projected_gravity,
-            noise=Unoise(n_min=-0.05, n_max=0.05),
+            noise=Unoise(n_min=-0.005, n_max=0.005),
         )
         
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01), params={"asset_cfg": SceneEntityCfg("robot", joint_names=JointNamesOrder, preserve_order=True)})
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.001, n_max=0.001), params={"asset_cfg": SceneEntityCfg("robot", joint_names=JointNamesOrder, preserve_order=True)})
         
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5), params={"asset_cfg": SceneEntityCfg("robot", joint_names=JointNamesOrder, preserve_order=True)})
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.15, n_max=0.15), params={"asset_cfg": SceneEntityCfg("robot", joint_names=JointNamesOrder, preserve_order=True)})
         
         actions = ObsTerm(func=mdp.last_action)
         curr_time = ObsTerm(func=current_time_enc)       
 
         rel_pos_object = ObsTerm(func=rel_pose_object, params={"fix_height": True, "only_pos": True})
-
+        # global_pos_val = ObsTerm(func=global_pos)
 
         right_hand_state_target_val = ObsTerm(
             func=hand_state_target)
@@ -260,7 +260,7 @@ class MySceneCfg(MySceneCfgBase):
         prim_path="{ENV_REGEX_NS}/Object",
         init_state=RigidObjectCfg.InitialStateCfg(pos=[0.35, 0.40, 1.0413], rot=[1, 0, 0, 0]),
         spawn=sim_utils.CuboidCfg(
-            size=(.05, .05, 0.2),collision_props=sim_utils.CollisionPropertiesCfg(),
+            size=(.05, .05, 0.3),collision_props=sim_utils.CollisionPropertiesCfg(),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=.1),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0., 0.6, 0.2), metallic=0.3),
@@ -276,9 +276,9 @@ class MySceneCfg(MySceneCfgBase):
 
     platform = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Platform",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.31+1./2., 0, 0.9/2.), rot=(1., 0., 0., 0.)),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.34+1./2., 0, 0.7), rot=(1., 0., 0., 0.)),
         spawn=sim_utils.CuboidCfg(
-            size=(1., 2., 0.9),collision_props=sim_utils.CollisionPropertiesCfg(),
+            size=(1., 2., 0.2),collision_props=sim_utils.CollisionPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0., 0.6, 0.2), metallic=0.3),
             physics_material=sim_utils.RigidBodyMaterialCfg(
                 friction_combine_mode="max",
@@ -314,6 +314,10 @@ class G1PickRealEnvCfg(G1InteractiveBaseEnvCfg):
         self.decimation = 4
         self.episode_length_s = 10.0
         self.sim.dt = 0.005
+        if self.scene.num_envs > 1001:
+            self.observations.policy.enable_corruption = False
+        else:
+            self.observations.policy.enable_corruption = False
 
 @configclass
 class G1PickRealEnvEvalCfg(G1InteractiveBaseEnvCfg):

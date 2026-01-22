@@ -142,6 +142,42 @@ def reset_object_state(
         object.write_root_pose_to_sim(torch.cat([object_pos, object_quat], dim=-1), env_ids=env_ids)
         object.write_root_velocity_to_sim(velocities, env_ids=env_ids)
         
+def reset_root_state_for_motion_w_offset(
+    env: ManagerBasedRLEnv,
+    env_ids: torch.Tensor,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    offset_z: float = 0.15,
+    offset_xy: tuple[float, float] = (0.0, 0.0),
+    wait_until: float = 0.0,
+):
+    """Reset the asset root state to the root state of the first pose in the motion library.
+
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject | Articulation = env.scene[asset_cfg.name]
+    # get default root state
+    if not hasattr(env, 'start_motion_times'):
+        positions = torch.zeros((env.scene.num_envs, 3), device=env.device)
+        orientations = torch.zeros((env.scene.num_envs, 4), device=env.device)
+        orientations[:, 0] = 1.0  # set the w component to 1.0 for identity quaternion
+        velocities = torch.zeros((env.scene.num_envs, 6), device=env.device)
+    else :
+        motion_times = env.start_motion_times.clone().detach().to(device=env.device, dtype=torch.float32)[env_ids]
+        motion_ids = env.motion_ids.clone().detach().to(device=env.device, dtype=torch.long)[env_ids]
+        motion_res = env.motion_lib.get_motion_state(motion_ids, motion_times)
+        velocities = torch.zeros((env.scene.num_envs, 6), device=env.device)[env_ids]
+        root_states = torch.cat([motion_res["root_pos"], motion_res["root_rot"], velocities], dim=-1)
+        positions = root_states[:, 0:3] + env.scene.env_origins[env_ids]
+        orientations = root_states[:, 3:7]
+        velocities = root_states[:, 7:13]
+        positions[:, 2] += offset_z
+        if env.common_step_counter < wait_until and env.num_envs > 1001:
+            positions[:, 0] += offset_xy[0]
+            positions[:, 1] += offset_xy[1]
+
+    # set into the physics simulation
+    asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
+    asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
 
 @configclass
 class EventCfg:
@@ -184,10 +220,12 @@ class EventCfg:
     )
 
     reset_base = EventTerm(
-        func=reset_root_state_for_motion,
+        func=reset_root_state_for_motion_w_offset,
         mode="reset",
         params={
-            "offset_z": 0.01
+            "offset_z": 0.05,
+            "offset_xy": (-1.0, 0.0),
+            "wait_until": 40000,
         }
     )
 
@@ -310,6 +348,7 @@ def target_orientation_error_rev(env: ManagerBasedRLEnv, asset_cfg: SceneEntityC
 def object_above_threshold(env: ManagerBasedRLEnv, height_thres = 0.7, fall_thres = 0.66) -> torch.Tensor:
     object: RigidObject = env.scene["object"]
     root_pos = object.data.root_pos_w
+    print(root_pos[:,2])
     has_grasped = (root_pos[:,2] > height_thres) * 1. + (root_pos[:,2] < height_thres) * (root_pos[:,2] > fall_thres) * (root_pos[:,2]-fall_thres) / (height_thres-fall_thres)
     motion_times = env.episode_length_buf * env.step_dt + env.start_motion_times.clone().detach().to(device=env.device, dtype=torch.float32)
     motion_res = env.motion_lib.get_motion_state(env.motion_ids, motion_times)
@@ -516,7 +555,7 @@ def rel_pose_object(env: ManagerBasedRLEnv, action_name: str | None = None, fix_
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
     asset: RigidObject = env.scene[asset_cfg.name]
     root_pos_robot = asset.data.root_pos_w - env.scene.env_origins
-    root_rot_robot = math_utils.quat_unique(asset.data.root_quat_w)
+    # root_rot_robot = math_utils.quat_unique(asset.data.root_quat_w)
     if not hasattr(env, 'motion_lib'):
         # If motion library is not available, return a tensor of zeros
         obs = torch.zeros((env.scene.num_envs, 7), device=env.device)
@@ -532,14 +571,11 @@ def rel_pose_object(env: ManagerBasedRLEnv, action_name: str | None = None, fix_
         if fix_rel_base_height:
             init_root_pos_robot = root_pos_robot.clone()*0.
             init_root_pos_robot[:, 2] = base_height
-            root_pos_robot_local = math_utils.quat_apply(
-                math_utils.quat_conjugate(root_rot_robot), root_pos - init_root_pos_robot)
+            root_pos_robot_local = root_pos - init_root_pos_robot
         else :
             init_root_pos_robot = root_pos_robot.clone()*0.
-            root_pos_robot_local = math_utils.quat_apply(
-                math_utils.quat_conjugate(root_rot_robot), root_pos - init_root_pos_robot)
-        root_rot_robot_local = math_utils.quat_mul(
-            math_utils.quat_conjugate(root_rot_robot), root_rot)
+            root_pos_robot_local = root_pos - init_root_pos_robot
+        root_rot_robot_local = root_rot
         
         if fix_height:
             root_pos_robot_local[:, 2] = 0.213
@@ -553,6 +589,19 @@ def rel_pose_object(env: ManagerBasedRLEnv, action_name: str | None = None, fix_
             target_ref_tensor = torch.cat([root_pos_robot_local, root_rot_robot_local], dim=-1)
         
         return target_ref_tensor
+
+def global_pos(env: ManagerBasedRLEnv) -> torch.Tensor:
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    asset: RigidObject = env.scene[asset_cfg.name]
+    root_pos_robot = asset.data.root_pos_w - env.scene.env_origins
+    root_rot_robot = math_utils.quat_unique(asset.data.root_quat_w)
+    _, _, yaw = math_utils.euler_xyz_from_quat(root_rot_robot)
+    x = root_pos_robot[:, 0]
+    y = root_pos_robot[:, 1]
+    # z = root_pos_robot[:, 2]
+    # import pdb; pdb.set_trace()
+    target_ref_tensor = torch.cat([x.unsqueeze(-1), y.unsqueeze(-1), yaw.unsqueeze(-1)], dim=-1)
+    return target_ref_tensor
 
 def rel_pose_goal(env: ManagerBasedRLEnv, action_name: str | None = None, fix_height: bool = False, fix_rel_base_height: bool = False) -> torch.Tensor:
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
