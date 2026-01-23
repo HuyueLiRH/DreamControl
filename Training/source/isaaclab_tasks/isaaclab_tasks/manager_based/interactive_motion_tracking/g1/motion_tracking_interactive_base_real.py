@@ -348,7 +348,7 @@ def target_orientation_error_rev(env: ManagerBasedRLEnv, asset_cfg: SceneEntityC
 def object_above_threshold(env: ManagerBasedRLEnv, height_thres = 0.7, fall_thres = 0.66) -> torch.Tensor:
     object: RigidObject = env.scene["object"]
     root_pos = object.data.root_pos_w
-    print(root_pos[:,2])
+    # print(root_pos[:,2])
     has_grasped = (root_pos[:,2] > height_thres) * 1. + (root_pos[:,2] < height_thres) * (root_pos[:,2] > fall_thres) * (root_pos[:,2]-fall_thres) / (height_thres-fall_thres)
     motion_times = env.episode_length_buf * env.step_dt + env.start_motion_times.clone().detach().to(device=env.device, dtype=torch.float32)
     motion_res = env.motion_lib.get_motion_state(env.motion_ids, motion_times)

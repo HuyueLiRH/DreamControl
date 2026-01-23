@@ -125,6 +125,7 @@ def main():
     log_dir = os.path.dirname(resume_path)
     env_cfg.viewer.eye = (2.5,-5.,5.)
     env_cfg.viewer.lookat = (2., 0., 0.)
+    env_cfg.observations.policy.enable_corruption = False
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
     print("Observation space:", env.observation_space)
     print("Action space:", env.action_space)

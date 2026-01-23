@@ -51,7 +51,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.motion_tracking_pick_top_ub_real_env:G1PickTopUBRealEvalEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.motion_tracking_pick_top_ub_real_env:G1PickTopUBRealEnvEvalCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_flat_ppo_cfg.yaml",
     },
@@ -83,7 +83,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.motion_tracking_punch_ub_real_env:G1PunchUBRealEvalEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.motion_tracking_punch_ub_real_env:G1PunchUBRealEnvEvalCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_flat_ppo_cfg.yaml",
     },
@@ -94,7 +94,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.motion_tracking_pick_real_env:G1PickRealEvalEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.motion_tracking_pick_real_env:G1PickRealEnvEvalCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_flat_ppo_cfg.yaml",
     },
@@ -149,7 +149,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.motion_tracking_button_press_real_env:G1ButtonPressRealEvalEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.motion_tracking_button_press_real_env:G1ButtonPressRealEnvEvalCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_flat_ppo_cfg.yaml",
     },
@@ -171,7 +171,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.motion_tracking_pick_ub_real_env:G1PickUBRealEvalEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.motion_tracking_pick_ub_real_env:G1PickUBRealEnvEvalCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatPPORunnerCfg",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_flat_ppo_cfg.yaml",
     },

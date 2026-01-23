@@ -314,11 +314,7 @@ class G1PickRealEnvCfg(G1InteractiveBaseEnvCfg):
         self.decimation = 4
         self.episode_length_s = 10.0
         self.sim.dt = 0.005
-        if self.scene.num_envs > 1001:
-            self.observations.policy.enable_corruption = False
-        else:
-            self.observations.policy.enable_corruption = False
-
+        
 @configclass
 class G1PickRealEnvEvalCfg(G1InteractiveBaseEnvCfg):
     rewards: G1Rewards = G1Rewards()
