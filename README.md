@@ -138,13 +138,13 @@ For instance, to run RL training for ```Pick``` task, run the following command:
 To run inference on the trained policy, run the following command:-
 
 ```bash
-./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play_eval.py --task=Isaac-Motion-Tracking-<TASK NAME>-v0 --headless --video --num_envs 1000 --device cuda:1 
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play_eval.py --task=Isaac-Motion-Tracking-<TASK NAME>-v0 --headless --video --num_envs 1000
 ```
 
 For instance, to run inference on the trained policy for ```Pick``` task, run the following command:-
 
 ```bash
-./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play_eval.py --task=Isaac-Motion-Tracking-Pick-v0 --headless --video --num_envs 1000 --device cuda:1 
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play_eval.py --task=Isaac-Motion-Tracking-Pick-v0 --headless --video --num_envs 1000
 ```
 
 This will take the latest trained checkpoint for the task in the ```Training/logs/rsl_rl/g1/``` directory and run inference on it. The video will be saved in the same log directory where the training checkpoint was taken from.
