@@ -49,3 +49,35 @@ class G1FlatPPORunnerCfg(G1RoughPPORunnerCfg):
         self.policy.actor_hidden_dims = [512, 256, 256]
         self.policy.critic_hidden_dims = [512, 256, 256]
 
+
+@configclass
+class G1WallBrushPPORunnerCfg(G1FlatPPORunnerCfg):
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.save_interval = 25
+        self.algorithm.learning_rate = 1.0e-4
+        self.algorithm.entropy_coef = 0.001
+        self.algorithm.num_learning_epochs = 2
+        self.algorithm.desired_kl = 0.004
+
+
+@configclass
+class G1WallBrushWarmstartPPORunnerCfg(G1WallBrushPPORunnerCfg):
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.policy.init_noise_std = 0.08
+        self.algorithm.entropy_coef = 0.0001
+
+
+@configclass
+class G1WallBrushStancePPORunnerCfg(G1FlatPPORunnerCfg):
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.save_interval = 10
+        self.algorithm.learning_rate = 1.0e-4
+        self.algorithm.entropy_coef = 0.002
+        self.algorithm.num_learning_epochs = 2
+        self.algorithm.desired_kl = 0.004
