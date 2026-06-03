@@ -5,6 +5,7 @@
 
 # needed to import for allowing type-hinting: np.ndarray | None
 from __future__ import annotations
+import importlib
 from isaaclab.markers import VisualizationMarkers
 import gymnasium as gym
 import math
@@ -135,7 +136,12 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 self.markers.append(
                     VisualizationMarkers(self.visualization_marker_cfg.replace(prim_path=f"/Visuals/Target/target_{i}"),)
                 )
-        self.motion_lib = MotionLibRobot(num_envs=self.scene.num_envs, device=self.sim.device, motion_file=self.cfg.ref_motions_path)
+        motion_lib_cls = MotionLibRobot
+        motion_lib_entry_point = getattr(self.cfg, "motion_lib_entry_point", None)
+        if motion_lib_entry_point:
+            module_name, class_name = motion_lib_entry_point.split(":")
+            motion_lib_cls = getattr(importlib.import_module(module_name), class_name)
+        self.motion_lib = motion_lib_cls(num_envs=self.scene.num_envs, device=self.sim.device, motion_file=self.cfg.ref_motions_path)
         # self.motion_lib = MotionLibRobot(num_envs=self.scene.num_envs, device=self.sim.device, motion_file="/home/azureuser/IsaacLab/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/g1/retargetting_results_27dof/generated")
         self.motion_lib.load_motions()
         self.joint_names = ['left_hip_pitch_joint', 'left_hip_roll_joint', 'left_hip_yaw_joint', 'left_knee_joint', 'left_ankle_pitch_joint', 'left_ankle_roll_joint', 'right_hip_pitch_joint', 'right_hip_roll_joint', 'right_hip_yaw_joint', 'right_knee_joint', 'right_ankle_pitch_joint', 'right_ankle_roll_joint', 'waist_yaw_joint', 'left_shoulder_pitch_joint', 'left_shoulder_roll_joint', 'left_shoulder_yaw_joint', 'left_elbow_joint', 'left_wrist_roll_joint', 'left_wrist_pitch_joint', 'left_wrist_yaw_joint', 'right_shoulder_pitch_joint', 'right_shoulder_roll_joint', 'right_shoulder_yaw_joint', 'right_elbow_joint', 'right_wrist_roll_joint', 'right_wrist_pitch_joint', 'right_wrist_yaw_joint']

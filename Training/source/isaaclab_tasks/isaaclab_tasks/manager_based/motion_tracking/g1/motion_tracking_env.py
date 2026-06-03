@@ -481,19 +481,16 @@ def target_ref(env: ManagerBasedRLEnv, time_offset: float = 0., visualize_marker
         global_keypts = motion_res["global_keypts"] + env.scene.env_origins.unsqueeze(1)
         # Translate global keypoints to the local frame of the robot
         goal_pos = motion_res["grab_pos"]
-        if goal_pos is not None and visualize_markers:
-            env.goal_marker.visualize(goal_pos + env.scene.env_origins + offset)
-        else :
-            marker_pos = torch.zeros((env.scene.num_envs, 3), device=env.device)
-            marker_pos[:, 2] = -0.1
-            env.goal_marker.visualize(marker_pos)
+        if visualize_markers and hasattr(env, "goal_marker"):
+            if goal_pos is not None:
+                env.goal_marker.visualize(goal_pos + env.scene.env_origins + offset)
+            else:
+                marker_pos = torch.zeros((env.scene.num_envs, 3), device=env.device)
+                marker_pos[:, 2] = -0.1
+                env.goal_marker.visualize(marker_pos)
         # Update the visualization markers in the environment
-        if time_offset == 0. and visualize_markers:
+        if time_offset == 0. and visualize_markers and hasattr(env, "update_visualization_markers"):
             env.update_visualization_markers(global_keypts)
-        if not visualize_markers:
-            marker_pos = torch.zeros_like(global_keypts)
-            marker_pos[:, :, 2] = -0.1
-            env.update_visualization_markers(marker_pos)
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
     asset: RigidObject = env.scene[asset_cfg.name]
     root_pos_robot = asset.data.root_pos_w - env.scene.env_origins

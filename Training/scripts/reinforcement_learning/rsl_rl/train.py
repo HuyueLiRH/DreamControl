@@ -8,6 +8,7 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import math
 import sys
 
 from isaaclab.app import AppLauncher
@@ -25,6 +26,18 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--max_iterations", type=int, default=5000, help="RL Policy training iterations.")
+parser.add_argument(
+    "--reset_optimizer_on_resume",
+    action="store_true",
+    default=False,
+    help="When resuming, load policy/value weights but start with a fresh optimizer and iteration counter.",
+)
+parser.add_argument(
+    "--resume_action_std",
+    type=float,
+    default=None,
+    help="If set, overwrite the resumed stochastic actor action standard deviation with this positive value.",
+)
 parser.add_argument(
     "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
 )
@@ -84,7 +97,16 @@ from isaaclab.envs import (
     multi_agent_to_single_agent,
 )
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.io import dump_pickle, dump_yaml
+try:
+    from isaaclab.utils.io import dump_pickle, dump_yaml
+except ImportError:
+    import pickle
+
+    from isaaclab.utils.io import dump_yaml
+
+    def dump_pickle(filename: str, data):
+        with open(filename, "wb") as file:
+            pickle.dump(data, file)
 
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 
@@ -98,6 +120,81 @@ torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = False
+
+
+def _upgrade_legacy_rsl_rl_cfg(train_cfg: dict) -> dict:
+    """Adapt IsaacLab's deprecated policy cfg to rsl-rl >= 5 actor/critic cfg."""
+    actor_cfg = train_cfg.get("actor")
+    critic_cfg = train_cfg.get("critic")
+    if actor_cfg and actor_cfg.get("class_name") and critic_cfg and critic_cfg.get("class_name"):
+        return train_cfg
+
+    policy_cfg = train_cfg.get("policy")
+    if not policy_cfg:
+        return train_cfg
+
+    actor_hidden_dims = policy_cfg.get("actor_hidden_dims")
+    critic_hidden_dims = policy_cfg.get("critic_hidden_dims")
+    if not actor_hidden_dims or not critic_hidden_dims:
+        return train_cfg
+
+    obs_normalization = train_cfg.get("empirical_normalization", False)
+    if isinstance(obs_normalization, dict):
+        obs_normalization = True
+
+    std_type = policy_cfg.get("noise_std_type", "scalar")
+    distribution_class = (
+        "HeteroscedasticGaussianDistribution"
+        if policy_cfg.get("state_dependent_std", False)
+        else "GaussianDistribution"
+    )
+    train_cfg["actor"] = {
+        "class_name": "MLPModel",
+        "hidden_dims": actor_hidden_dims,
+        "activation": policy_cfg.get("activation", "elu"),
+        "obs_normalization": bool(obs_normalization),
+        "distribution_cfg": {
+            "class_name": distribution_class,
+            "init_std": policy_cfg.get("init_noise_std", 1.0),
+            "std_type": std_type,
+        },
+    }
+    train_cfg["critic"] = {
+        "class_name": "MLPModel",
+        "hidden_dims": critic_hidden_dims,
+        "activation": policy_cfg.get("activation", "elu"),
+        "obs_normalization": bool(obs_normalization),
+        "distribution_cfg": None,
+    }
+    train_cfg.setdefault("obs_groups", {})
+
+    algorithm_cfg = train_cfg.get("algorithm", {})
+    algorithm_cfg.setdefault("optimizer", "adam")
+    algorithm_cfg.setdefault("share_cnn_encoders", False)
+    algorithm_cfg.setdefault("rnd_cfg", None)
+    algorithm_cfg.setdefault("symmetry_cfg", None)
+    train_cfg["algorithm"] = algorithm_cfg
+    return train_cfg
+
+
+def _set_actor_action_std(runner: OnPolicyRunner, action_std: float):
+    if action_std <= 0.0:
+        raise ValueError("--resume_action_std must be positive.")
+
+    distribution = getattr(getattr(runner.alg, "actor", None), "distribution", None)
+    if distribution is None:
+        print("[WARN]: --resume_action_std was set, but the actor has no distribution to update.")
+        return
+
+    with torch.no_grad():
+        if hasattr(distribution, "std_param"):
+            distribution.std_param.data.fill_(action_std)
+        elif hasattr(distribution, "log_std_param"):
+            distribution.log_std_param.data.fill_(math.log(action_std))
+        else:
+            print("[WARN]: --resume_action_std was set, but no std parameter was found on the actor distribution.")
+            return
+    print(f"[INFO]: Resumed actor action std reset to {action_std}.")
 
 
 @hydra_task_config(args_cli.task, "rsl_rl_cfg_entry_point")
@@ -166,7 +263,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # import pdb; pdb.set_trace()  # noqa: E702
 
     # create runner from rsl-rl
-    runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+    runner_cfg = _upgrade_legacy_rsl_rl_cfg(agent_cfg.to_dict())
+    runner = OnPolicyRunner(env, runner_cfg, log_dir=log_dir, device=agent_cfg.device)
     # import pdb; pdb.set_trace()  # noqa: E702
     # write git state to logs
     runner.add_git_repo_to_log(__file__)
@@ -174,7 +272,22 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
         print(f"[INFO]: Loading model checkpoint from: {resume_path}")
         # load previously trained model
-        runner.load(resume_path)
+        if args_cli.reset_optimizer_on_resume:
+            runner.load(
+                resume_path,
+                load_cfg={
+                    "actor": True,
+                    "critic": True,
+                    "optimizer": False,
+                    "iteration": False,
+                    "rnd": True,
+                },
+            )
+            print("[INFO]: Loaded actor/critic weights only; optimizer and iteration counter were reset.")
+        else:
+            runner.load(resume_path)
+        if args_cli.resume_action_std is not None:
+            _set_actor_action_std(runner, args_cli.resume_action_std)
 
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
