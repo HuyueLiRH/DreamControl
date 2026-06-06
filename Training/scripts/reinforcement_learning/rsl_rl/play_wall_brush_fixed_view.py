@@ -40,6 +40,8 @@ parser.add_argument("--camera_lookat", type=_triple, default=(0.36, 0.00, 0.92),
 parser.add_argument("--camera_resolution", type=_resolution, default=(1600, 1000), help="Camera resolution as w,h.")
 parser.add_argument("--view_name", type=str, default="wall_brush_fixed_view", help="Output video subfolder name.")
 parser.add_argument("--show_wall_brush_markers", action="store_true", default=True, help="Show brush-tip, row, trail, and illegal-contact markers.")
+parser.add_argument("--hide_wall_brush_markers", action="store_true", default=False, help="Disable review markers for Newton/renderer compatibility.")
+parser.add_argument("--disable_review_wall_material", action="store_true", default=False, help="Do not override the wall material.")
 parser.add_argument("--prior_id", type=int, default=0, help="Deterministic prior ID for qualitative review. Use -1 for random reset.")
 parser.add_argument("--trail_points", type=int, default=120, help="Maximum brush-tip trail points to display.")
 parser.add_argument("--illegal_clearance", type=float, default=0.05, help="Red-marker clearance threshold for non-brush body links.")
@@ -102,6 +104,11 @@ from isaaclab_tasks.utils.motion_lib.motion_lib_base import JointNamesOrder
 
 installed_version = metadata.version("rsl-rl-lib")
 
+
+def _as_torch(value):
+    return value.torch if hasattr(value, "torch") else value
+
+
 BRUSH_LINK = "right_hand_index_1_link"
 RIGHT_HAND_NAMES = {
     "right_wrist_roll_link",
@@ -158,8 +165,8 @@ def _reset_to_prior_id(raw_env, prior_id: int):
     motion_res = raw_env.motion_lib.get_motion_state(motion_ids, torch.zeros(raw_env.scene.num_envs, device=device))
     asset: Articulation = raw_env.scene["robot"]
     joint_ids = torch.tensor([asset.joint_names.index(name) for name in JointNamesOrder], device=device)
-    joint_pos = asset.data.default_joint_pos[env_ids].clone()
-    joint_vel = asset.data.default_joint_vel[env_ids].clone()
+    joint_pos = _as_torch(asset.data.default_joint_pos)[env_ids].clone()
+    joint_vel = _as_torch(asset.data.default_joint_vel)[env_ids].clone()
     joint_pos[:, joint_ids] = motion_res["dof_pos"]
     asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
@@ -290,11 +297,12 @@ def _illegal_wall_contact_positions(raw_env, asset: Articulation, motion_res) ->
         return torch.empty((0, 3), device=raw_env.device)
 
     asset_ids = torch.tensor([asset.body_names.index(sensor_names[idx]) for idx in sensor_ids], device=raw_env.device)
-    body_pos = asset.data.body_state_w[0, asset_ids, :3]
+    body_state_w = _as_torch(asset.data.body_state_w)
+    body_pos = body_state_w[0, asset_ids, :3]
     body_pos_env = body_pos - raw_env.scene.env_origins[0].unsqueeze(0)
     clearance = motion_res["wall_mid"][0, 0] - body_pos_env[:, 0]
     near_wall = clearance < args_cli.wall_contact_near_margin
-    forces = torch.abs(sensor.data.net_forces_w[0, sensor_ids, 0])
+    forces = torch.abs(_as_torch(sensor.data.net_forces_w)[0, sensor_ids, 0])
     illegal = (forces > args_cli.wall_contact_force_threshold) & near_wall
     if not torch.any(illegal):
         return torch.empty((0, 3), device=raw_env.device)
@@ -322,7 +330,8 @@ def _update_markers(raw_env, markers, trail: list[torch.Tensor]):
     ).reshape(-1, 3)
     wall_marker.visualize(translations=wall_grid)
 
-    brush_tip_world = asset.data.body_state_w[0, body_id, :3]
+    body_state_w = _as_torch(asset.data.body_state_w)
+    brush_tip_world = body_state_w[0, body_id, :3]
     tip_marker.visualize(translations=brush_tip_world.unsqueeze(0))
 
     start = motion_res["wall_start"][0] + env_origin
@@ -350,7 +359,7 @@ def _update_markers(raw_env, markers, trail: list[torch.Tensor]):
 
     illegal_positions = _illegal_wall_contact_positions(raw_env, asset, motion_res)
     if illegal_positions.shape[0] == 0 and _wall_contact_sensor(raw_env) is None:
-        body_pos = asset.data.body_state_w[0, :, :3]
+        body_pos = body_state_w[0, :, :3]
         body_pos_env = body_pos - env_origin.unsqueeze(0)
         wall_x = motion_res["wall_mid"][0, 0]
         clearance = wall_x - body_pos_env[:, 0]
@@ -379,7 +388,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env_cfg.viewer.lookat = args_cli.camera_lookat
     env_cfg.viewer.resolution = args_cli.camera_resolution
     env_cfg.viewer.origin_type = "world"
-    if hasattr(env_cfg.scene, "wall"):
+    if hasattr(env_cfg.scene, "wall") and not args_cli.disable_review_wall_material:
         env_cfg.scene.wall.spawn.visual_material = sim_utils.PreviewSurfaceCfg(
             diffuse_color=args_cli.review_wall_color,
             metallic=0.0,
@@ -443,7 +452,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     obs = _policy_obs(env)
     dt = env.unwrapped.step_dt
     timestep = 0
-    markers = _create_markers() if args_cli.show_wall_brush_markers else None
+    markers = _create_markers() if args_cli.show_wall_brush_markers and not args_cli.hide_wall_brush_markers else None
     trail: list[torch.Tensor] = []
     smoothed_actions = None
     while simulation_app.is_running():

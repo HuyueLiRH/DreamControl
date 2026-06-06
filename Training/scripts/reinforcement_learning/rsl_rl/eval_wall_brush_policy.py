@@ -114,6 +114,10 @@ from isaaclab_tasks.utils.motion_lib.motion_lib_base import JointNamesOrder
 installed_version = metadata.version("rsl-rl-lib")
 
 
+def _as_torch(value):
+    return value.torch if hasattr(value, "torch") else value
+
+
 TORSO_HEAD_NAMES = [
     "pelvis",
     "waist_yaw_link",
@@ -239,8 +243,8 @@ def _reset_to_prior_ids(raw_env, num_envs: int):
     asset: Articulation = raw_env.scene["robot"]
     joint_ids = torch.tensor([asset.joint_names.index(name) for name in JointNamesOrder], device=device)
 
-    joint_pos = asset.data.default_joint_pos[env_ids].clone()
-    joint_vel = asset.data.default_joint_vel[env_ids].clone()
+    joint_pos = _as_torch(asset.data.default_joint_pos)[env_ids].clone()
+    joint_vel = _as_torch(asset.data.default_joint_vel)[env_ids].clone()
     joint_pos[:, joint_ids] = motion_res["dof_pos"]
     asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
 
@@ -343,7 +347,8 @@ def _wall_contact_forces(
     sensor = _wall_contact_sensor(raw_env)
     if sensor is None or sensor.data.net_forces_w is None:
         return torch.zeros((raw_env.num_envs, int(sensor_body_ids.numel())), device=raw_env.device)
-    wall_normal_force = torch.abs(sensor.data.net_forces_w[:, sensor_body_ids, 0])
+    net_forces_w = _as_torch(sensor.data.net_forces_w)
+    wall_normal_force = torch.abs(net_forces_w[:, sensor_body_ids, 0])
     near_wall = body_clearance[:, asset_body_ids] < args_cli.wall_contact_near_margin
     return torch.where(near_wall, wall_normal_force, torch.zeros_like(wall_normal_force))
 
@@ -403,7 +408,7 @@ def _self_collision_proxy_group_stats(raw_env, asset: Articulation, body_pos: to
 
 
 def _torso_yaw_and_upright(asset: Articulation) -> tuple[torch.Tensor, torch.Tensor]:
-    root_quat = math_utils.quat_unique(asset.data.root_quat_w)
+    root_quat = math_utils.quat_unique(_as_torch(asset.data.root_quat_w))
     root_rot = math_utils.matrix_from_quat(root_quat)
     forward = root_rot[:, :, 0]
     forward_xy = forward[:, :2]
@@ -425,8 +430,10 @@ def _measure(raw_env, brush_link: str):
     )
     motion_res = raw_env.motion_lib.get_motion_state(raw_env.motion_ids, motion_times)
     asset: Articulation = raw_env.scene["robot"]
+    body_state_w = _as_torch(asset.data.body_state_w)
+    root_quat_w = _as_torch(asset.data.root_quat_w)
     body_id = asset.body_names.index(brush_link)
-    brush_tip = asset.data.body_state_w[:, body_id, :3] - raw_env.scene.env_origins
+    brush_tip = body_state_w[:, body_id, :3] - raw_env.scene.env_origins
 
     wall_x_error = torch.abs(brush_tip[:, 0] - motion_res["wall_mid"][:, 0])
     row_yz_error = torch.norm(brush_tip[:, 1:3] - motion_res["brush_tip_pos"][:, 1:3], dim=1)
@@ -439,16 +446,16 @@ def _measure(raw_env, brush_link: str):
     tip_phase = torch.sum((brush_tip - start) * line, dim=1) / denom
     ref_phase = torch.sum((motion_res["brush_tip_pos"] - start) * line, dim=1) / denom
     phase_error = torch.abs(torch.clamp(tip_phase, 0.0, 1.0) - torch.clamp(ref_phase, 0.0, 1.0))
-    body_pos = asset.data.body_state_w[:, :, :3] - raw_env.scene.env_origins.unsqueeze(1)
+    body_pos = body_state_w[:, :, :3] - raw_env.scene.env_origins.unsqueeze(1)
     wall_x = motion_res["wall_mid"][:, 0]
     body_clearance = wall_x.unsqueeze(1) - body_pos[:, :, 0]
     torso_yaw_deg, torso_upright_deg = _torso_yaw_and_upright(asset)
     joint_ids = torch.tensor([asset.joint_names.index(name) for name in JointNamesOrder], device=device)
-    joint_error = torch.abs(asset.data.joint_pos[:, joint_ids] - motion_res["dof_pos"])
+    joint_error = torch.abs(_as_torch(asset.data.joint_pos)[:, joint_ids] - motion_res["dof_pos"])
     right_arm_joint_error = joint_error[:, _joint_order_indices(RIGHT_ARM_JOINT_NAMES, device)]
-    root_pos = asset.data.root_pos_w - raw_env.scene.env_origins
+    root_pos = _as_torch(asset.data.root_pos_w) - raw_env.scene.env_origins
     root_position_error = torch.norm(root_pos - motion_res["root_pos"], dim=1)
-    root_orientation_error_deg = torch.rad2deg(math_utils.quat_error_magnitude(motion_res["root_rot"], asset.data.root_quat_w))
+    root_orientation_error_deg = torch.rad2deg(math_utils.quat_error_magnitude(motion_res["root_rot"], root_quat_w))
     self_collision_violation, self_collision_margin = _self_collision_proxy_stats(raw_env, asset, body_pos)
 
     return {
@@ -571,7 +578,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     right_hand_wall_sensor_ids = torch.empty(0, device=device, dtype=torch.long)
     right_hand_wall_asset_ids = torch.empty(0, device=device, dtype=torch.long)
     left_arm_wall_sensor_ids, left_arm_wall_asset_ids = _wall_contact_body_pairs(raw, asset, LEFT_ARM_NAMES)
-    initial_body_pos = asset.data.body_state_w[:, :, :3] - raw.scene.env_origins.unsqueeze(1)
+    initial_body_pos = _as_torch(asset.data.body_state_w)[:, :, :3] - raw.scene.env_origins.unsqueeze(1)
     initial_foot_xy = initial_body_pos[:, foot_ids, :2].clone()
 
     alive = torch.ones(num_envs, dtype=torch.bool, device=device)
@@ -732,8 +739,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             if smoothed_actions is not None:
                 smoothed_actions[dones.bool()] = 0.0
 
-            root_pos_env = asset.data.root_pos_w - raw.scene.env_origins
-            root_rot = math_utils.matrix_from_quat(math_utils.quat_unique(asset.data.root_quat_w))
+            root_pos_env = _as_torch(asset.data.root_pos_w) - raw.scene.env_origins
+            root_rot = math_utils.matrix_from_quat(math_utils.quat_unique(_as_torch(asset.data.root_quat_w)))
             root_cos_z = root_rot[:, 2, 2]
             min_root_z = torch.minimum(min_root_z, torch.where(alive_before_step, root_pos_env[:, 2], min_root_z))
             min_root_cos_z = torch.minimum(
