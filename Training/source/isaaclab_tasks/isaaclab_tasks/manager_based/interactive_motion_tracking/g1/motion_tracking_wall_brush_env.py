@@ -667,6 +667,50 @@ def reset_wall_brush_success_buffers(env, env_ids: torch.Tensor):
     env.wall_brush_invalidated_success[env_ids] = False
 
 
+def _buffer_needs_reset(env, name: str, shape: tuple[int, ...], dtype: torch.dtype | None = None) -> bool:
+    tensor = getattr(env, name, None)
+    if not torch.is_tensor(tensor):
+        return True
+    target_device = torch.empty((), device=env.device).device
+    if tensor.shape != shape or tensor.device != target_device:
+        return True
+    return dtype is not None and tensor.dtype != dtype
+
+
+def _ensure_wall_brush_smoothness_buffers(env):
+    count_shape = (env.scene.num_envs,)
+    vector_shape = (env.scene.num_envs, 3)
+    if (
+        _buffer_needs_reset(env, "wall_brush_prev_tip_pos", vector_shape, torch.float32)
+        or _buffer_needs_reset(env, "wall_brush_prev_tip_vel", vector_shape, torch.float32)
+        or _buffer_needs_reset(env, "wall_brush_prev_tip_accel", vector_shape, torch.float32)
+        or _buffer_needs_reset(env, "wall_brush_tip_history_count", count_shape, torch.long)
+    ):
+        env.wall_brush_prev_tip_pos = torch.zeros(vector_shape, device=env.device, dtype=torch.float32)
+        env.wall_brush_prev_tip_vel = torch.zeros(vector_shape, device=env.device, dtype=torch.float32)
+        env.wall_brush_prev_tip_accel = torch.zeros(vector_shape, device=env.device, dtype=torch.float32)
+        env.wall_brush_tip_history_count = torch.zeros(count_shape, device=env.device, dtype=torch.long)
+    action = getattr(getattr(env, "action_manager", None), "action", None)
+    if action is not None and (
+        _buffer_needs_reset(env, "wall_brush_prev_action_delta", tuple(action.shape), action.dtype)
+        or _buffer_needs_reset(env, "wall_brush_action_delta_valid", count_shape, torch.bool)
+    ):
+        env.wall_brush_prev_action_delta = torch.zeros_like(action)
+        env.wall_brush_action_delta_valid = torch.zeros(count_shape, device=env.device, dtype=torch.bool)
+
+
+def reset_wall_brush_smoothness_buffers(env, env_ids: torch.Tensor):
+    _ensure_wall_brush_smoothness_buffers(env)
+    env.wall_brush_prev_tip_pos[env_ids] = 0.0
+    env.wall_brush_prev_tip_vel[env_ids] = 0.0
+    env.wall_brush_prev_tip_accel[env_ids] = 0.0
+    env.wall_brush_tip_history_count[env_ids] = 0
+    if hasattr(env, "wall_brush_prev_action_delta"):
+        env.wall_brush_prev_action_delta[env_ids] = 0.0
+    if hasattr(env, "wall_brush_action_delta_valid"):
+        env.wall_brush_action_delta_valid[env_ids] = False
+
+
 def _body_id(asset: Articulation, asset_cfg: SceneEntityCfg) -> int:
     if isinstance(asset_cfg.body_ids, slice):
         return asset.body_names.index(BRUSH_LINK)
@@ -1244,6 +1288,57 @@ def action_joint_reference_violation(
     mask = torch.tensor(joint_mask, device=env.device, dtype=ref_joint_pos.dtype).unsqueeze(0)
     err = (action_term.processed_actions - ref_joint_pos) * mask
     return torch.sum(torch.abs(err), dim=1)
+
+
+def action_accel_l2(env) -> torch.Tensor:
+    _ensure_wall_brush_smoothness_buffers(env)
+    action = env.action_manager.action
+    delta = action - env.action_manager.prev_action
+    accel = delta - env.wall_brush_prev_action_delta
+    penalty = torch.sum(torch.square(accel), dim=1)
+    penalty = torch.where(env.wall_brush_action_delta_valid, penalty, torch.zeros_like(penalty))
+    env.wall_brush_prev_action_delta[:] = delta
+    env.wall_brush_action_delta_valid[:] = True
+    return penalty
+
+
+def brush_tip_smoothness_l2(
+    env,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot", body_names=[BRUSH_LINK]),
+    accel_scale: float = 20.0,
+    jerk_scale: float = 600.0,
+    jerk_mix: float = 0.35,
+    active_only: bool = False,
+) -> torch.Tensor:
+    motion_res = _motion_state(env)
+    if motion_res is None:
+        return _zero_reward(env)
+    _ensure_wall_brush_smoothness_buffers(env)
+    tip = _brush_tip_pos(env, asset_cfg, motion_res)
+    dt = max(float(getattr(env, "step_dt", 0.02)), 1e-6)
+    count = env.wall_brush_tip_history_count
+    has_prev_pos = count >= 1
+    has_prev_vel = count >= 2
+    has_prev_accel = count >= 3
+
+    vel = (tip - env.wall_brush_prev_tip_pos) / dt
+    accel = (vel - env.wall_brush_prev_tip_vel) / dt
+    jerk = (accel - env.wall_brush_prev_tip_accel) / dt
+    zero = torch.zeros_like(tip)
+    accel = torch.where(has_prev_vel.unsqueeze(1), accel, zero)
+    jerk = torch.where(has_prev_accel.unsqueeze(1), jerk, zero)
+
+    accel_penalty = torch.sum(torch.square(accel / max(accel_scale, 1e-6)), dim=1)
+    jerk_penalty = torch.sum(torch.square(jerk / max(jerk_scale, 1e-6)), dim=1)
+    penalty = accel_penalty + jerk_mix * jerk_penalty
+    if active_only:
+        penalty = penalty * motion_res["stroke_active"].float()
+
+    env.wall_brush_prev_tip_pos[:] = tip
+    env.wall_brush_prev_tip_vel[:] = torch.where(has_prev_pos.unsqueeze(1), vel, zero)
+    env.wall_brush_prev_tip_accel[:] = torch.where(has_prev_vel.unsqueeze(1), accel, zero)
+    env.wall_brush_tip_history_count[:] = torch.clamp(count + 1, max=3)
+    return penalty
 
 
 def stance_root_position_error(env, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
@@ -2186,6 +2281,62 @@ class G1WallBrushDreamControlButtonPressAlignedRewards(G1RewardsBase):
 
 
 @configclass
+class G1WallBrushDreamControlButtonPressAlignedAntiJitterRewards(G1WallBrushDreamControlButtonPressAlignedRewards):
+    """ButtonPressAligned reward variant that reduces jitter and kinematic collision proxies."""
+
+    dof_acc_l2 = RewTerm(
+        func=mdp.joint_acc_l2,
+        weight=-2.5e-7,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JointNamesOrder, preserve_order=True)},
+    )
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.018)
+    action_accel_l2 = RewTerm(func=action_accel_l2, weight=-0.006)
+    brush_tip_smoothness = RewTerm(
+        func=brush_tip_smoothness_l2,
+        weight=-0.20,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=[BRUSH_LINK]),
+            "accel_scale": 20.0,
+            "jerk_scale": 600.0,
+            "jerk_mix": 0.35,
+        },
+    )
+    brush_tip_contact = RewTerm(
+        func=brush_tip_wall_contact,
+        weight=2.4,
+        params={"asset_cfg": SceneEntityCfg("robot", body_names=[BRUSH_LINK]), "broad_std": 0.12, "fine_std": 0.04},
+    )
+    brush_tip_contact_band = RewTerm(
+        func=brush_tip_wall_band_violation,
+        weight=-1.2,
+        params={"asset_cfg": SceneEntityCfg("robot", body_names=[BRUSH_LINK]), "target_band": 0.035, "scale": 0.08},
+    )
+    self_collision_proxy = RewTerm(
+        func=self_collision_proxy_violation,
+        weight=-60.0,
+        params={"asset_cfg": SceneEntityCfg("robot")},
+    )
+    nonbrush_wall_clearance = RewTerm(
+        func=body_wall_clearance_violation,
+        weight=-12.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=NONBRUSH_LINKS, preserve_order=True),
+            "min_clearance": 0.08,
+            "active_only": False,
+        },
+    )
+    right_hand_nonbrush_wall_clearance = RewTerm(
+        func=body_wall_clearance_violation,
+        weight=-8.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=RIGHT_HAND_NONBRUSH_LINKS, preserve_order=True),
+            "min_clearance": 0.025,
+            "active_only": True,
+        },
+    )
+
+
+@configclass
 class G1WallBrushDreamControlButtonPressBalanceRewards(G1WallBrushDreamControlButtonPressAlignedRewards):
     """ButtonPress-scale survival curriculum that permits balance residuals before brush tracking."""
 
@@ -2579,6 +2730,10 @@ class WallBrushCurriculumEventCfg(EventCfg):
 
 @configclass
 class WallBrushDreamControlEventCfg(WallBrushCurriculumEventCfg):
+    reset_smoothness_buffers = EventTerm(
+        func=reset_wall_brush_smoothness_buffers,
+        mode="reset",
+    )
     reset_base = EventTerm(
         func=reset_root_state_for_motion,
         mode="reset",
@@ -3153,6 +3308,15 @@ class G1WallBrushNoWallCollisionDreamControlButtonPressAlignedEnvCfg(G1WallBrush
         self.decimation = 4
         self.episode_length_s = 10.0
         self.sim.dt = 0.005
+
+
+@configclass
+class G1WallBrushNoWallCollisionDreamControlButtonPressAlignedAntiJitterEnvCfg(G1WallBrushNoWallCollisionDreamControlButtonPressAlignedEnvCfg):
+    """ButtonPressAligned full-body task with anti-jitter and collision-free shaping."""
+
+    rewards: G1WallBrushDreamControlButtonPressAlignedAntiJitterRewards = (
+        G1WallBrushDreamControlButtonPressAlignedAntiJitterRewards()
+    )
 
 
 @configclass
