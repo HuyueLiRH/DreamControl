@@ -26,7 +26,7 @@ The Newton run required two important compatibility fixes:
 - IsaacLab/Newton state tensors may be returned as `ProxyArray`, so the eval/play scripts convert those reads with `value.torch` when available.
 - Newton/IsaacLab internals use xyzw quaternions, while this trained policy expects the `target_ref_*` observation quaternion slot in the original wxyz convention.
 
-The exact checkpoint was trained under the AntiJitter task variant. This PR preserves the Newton eval/play compatibility patches and environment pins, but does not include the unmerged AntiJitter training-task implementation. Until that task variant is merged, the reproduction script defaults to the closest present task, `Isaac-Motion-Tracking-Wall-Brush-NoWallCollision-DreamControl-ButtonPressAligned-v0`, and exposes the exact task name in `configs/newton_wall_brush_versions.env`.
+The exact checkpoint was trained under the AntiJitter task variant, and the reproduction config defaults to that task name in `configs/newton_wall_brush_versions.env`.
 
 ## Results
 

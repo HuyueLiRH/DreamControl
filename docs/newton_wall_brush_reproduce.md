@@ -8,7 +8,7 @@ The environment is tracked through forks and pinned refs, not by vendoring all o
 
 | component | fork | upstream | ref |
 | --- | --- | --- | --- |
-| DreamControl task/scripts | `https://github.com/HuyueLiRH/DreamControl.git` | `https://github.com/GenRobo/DreamControl.git` | `codex/newton-wall-brush-sim2sim-pr` |
+| DreamControl task/scripts | `https://github.com/HuyueLiRH/DreamControl.git` | `https://github.com/GenRobo/DreamControl.git` | `codex/newton-wall-brush-reproduction-pins` |
 | IsaacLab Newton integration | `https://github.com/HuyueLiRH/IsaacLab.git` | `https://github.com/isaac-sim/IsaacLab.git` | `v3.0.0-beta` |
 | Newton | `https://github.com/HuyueLiRH/newton.git` | `https://github.com/newton-physics/newton.git` | `v1.2.1` |
 
@@ -35,7 +35,7 @@ Clone DreamControl and check out this PR branch or the merge commit that contain
 ```bash
 git clone https://github.com/HuyueLiRH/DreamControl.git /root/autodl-tmp/DreamControl
 cd /root/autodl-tmp/DreamControl
-git checkout codex/newton-wall-brush-sim2sim-pr
+git checkout codex/newton-wall-brush-reproduction-pins
 ```
 
 Prepare the expected Training root used by the existing remote scripts:
@@ -73,24 +73,18 @@ bash Training/scripts/newton_wall_brush_eval.sh \
 
 The script defaults to `physics=newton_mjwarp` through `configs/newton_wall_brush_versions.env`.
 
-## Exact AntiJitter Task Caveat
+## Exact AntiJitter Task
 
-The checkpoint was trained with:
+The checkpoint was trained with, and the eval script defaults to:
 
 ```text
 Isaac-Motion-Tracking-Wall-Brush-NoWallCollision-DreamControl-ButtonPressAlignedAntiJitter-v0
 ```
 
-That exact task variant is not part of this Newton reproduction PR. The eval script defaults to the closest task present on this branch:
-
-```text
-Isaac-Motion-Tracking-Wall-Brush-NoWallCollision-DreamControl-ButtonPressAligned-v0
-```
-
-If the AntiJitter task code is merged separately, change this value in `configs/newton_wall_brush_versions.env`:
+To run a different task variant, override this value in `configs/newton_wall_brush_versions.env` or in the shell environment:
 
 ```bash
-NEWTON_WALL_BRUSH_TASK="Isaac-Motion-Tracking-Wall-Brush-NoWallCollision-DreamControl-ButtonPressAlignedAntiJitter-v0"
+NEWTON_WALL_BRUSH_TASK="Isaac-Motion-Tracking-Wall-Brush-NoWallCollision-DreamControl-ButtonPressAligned-v0"
 ```
 
 ## When To Patch The Forks
