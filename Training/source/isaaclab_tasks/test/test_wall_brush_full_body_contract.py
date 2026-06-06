@@ -85,6 +85,21 @@ BUTTONPRESS_BALANCE_TASK_ID = (
 BUTTONPRESS_ALIGNED_TASK_ID = (
     "Isaac-Motion-Tracking-Wall-Brush-NoWallCollision-DreamControl-ButtonPressAligned-v0"
 )
+BUTTONPRESS_ALIGNED_ANTIJITTER_TASK_ID = (
+    "Isaac-Motion-Tracking-Wall-Brush-NoWallCollision-DreamControl-ButtonPressAlignedAntiJitter-v0"
+)
+BUTTONPRESS_ANTIJITTER_TRAIN_WRAPPER = _first_existing(
+    LOCAL_SCRIPTS_ROOT / "remote_wall_brush_buttonpress_aligned_antijitter_train.sh",
+    ARTIFACT_ROOT / "remote_wall_brush_buttonpress_aligned_antijitter_train.sh",
+)
+BUTTONPRESS_ANTIJITTER_EVAL_WRAPPER = _first_existing(
+    LOCAL_SCRIPTS_ROOT / "remote_wall_brush_buttonpress_aligned_antijitter_eval.sh",
+    ARTIFACT_ROOT / "remote_wall_brush_buttonpress_aligned_antijitter_eval.sh",
+)
+BUTTONPRESS_ANTIJITTER_SWEEP_WRAPPER = _first_existing(
+    LOCAL_SCRIPTS_ROOT / "remote_wall_brush_antijitter_sweep.sh",
+    ARTIFACT_ROOT / "remote_wall_brush_antijitter_sweep.sh",
+)
 STANDSTILL_ROW_CONTACT_TASK_ID = (
     "Isaac-Motion-Tracking-Wall-Brush-NoWallCollision-DreamControl-StandStillRowContact-v0"
 )
@@ -409,6 +424,68 @@ class WallBrushFullBodyContractTest(unittest.TestCase):
             f"motion_tracking_wall_brush_env:{AGILE_BASE_CLASS_NAME}",
             init_source,
         )
+
+    def test_buttonpress_aligned_antijitter_success_route_is_fixed(self):
+        source = _source()
+        init_source = INIT_SOURCE.read_text(encoding="utf-8")
+        rewards_block = _class_block(source, "G1WallBrushDreamControlButtonPressAlignedAntiJitterRewards")
+        env_block = _class_block(source, "G1WallBrushNoWallCollisionDreamControlButtonPressAlignedAntiJitterEnvCfg")
+
+        self.assertIn(
+            "class G1WallBrushDreamControlButtonPressAlignedAntiJitterRewards("
+            "G1WallBrushDreamControlButtonPressAlignedRewards):",
+            rewards_block,
+        )
+        self.assertIn("action_accel_l2 = RewTerm(func=action_accel_l2, weight=-0.006)", rewards_block)
+        self.assertIn("brush_tip_smoothness = RewTerm", rewards_block)
+        self.assertIn("self_collision_proxy = RewTerm", rewards_block)
+        self.assertIn("nonbrush_wall_clearance = RewTerm", rewards_block)
+        self.assertIn("right_hand_nonbrush_wall_clearance = RewTerm", rewards_block)
+
+        self.assertIn(
+            "class G1WallBrushNoWallCollisionDreamControlButtonPressAlignedAntiJitterEnvCfg("
+            "G1WallBrushNoWallCollisionDreamControlButtonPressAlignedEnvCfg",
+            env_block,
+        )
+        self.assertIn("G1WallBrushDreamControlButtonPressAlignedAntiJitterRewards()", env_block)
+        self.assertNotIn("G1_MINIMAL_CFG_FIXED_BASE", env_block)
+        self.assertNotIn("fix_root_link = True", env_block)
+
+        aligned_block = _class_block(source, "G1WallBrushNoWallCollisionDreamControlButtonPressAlignedEnvCfg")
+        self.assertIn("actions: ActionsCfg = ActionsCfg()", aligned_block)
+        self.assertIn("fix_root_link = False", aligned_block)
+        self.assertIn("self.decimation = 4", aligned_block)
+        self.assertIn("self.episode_length_s = 10.0", aligned_block)
+        self.assertIn("self.sim.dt = 0.005", aligned_block)
+
+        self.assertIn(f'id="{BUTTONPRESS_ALIGNED_ANTIJITTER_TASK_ID}"', init_source)
+        self.assertIn(
+            "motion_tracking_wall_brush_env:G1WallBrushNoWallCollisionDreamControlButtonPressAlignedAntiJitterEnvCfg",
+            init_source,
+        )
+        self.assertNotIn("ButtonPressAlignedBodyGroupAntiJitter", source + init_source)
+
+    def test_buttonpress_aligned_antijitter_wrappers_use_official_contract(self):
+        train_source = BUTTONPRESS_ANTIJITTER_TRAIN_WRAPPER.read_text(encoding="utf-8")
+        eval_source = BUTTONPRESS_ANTIJITTER_EVAL_WRAPPER.read_text(encoding="utf-8")
+        sweep_source = BUTTONPRESS_ANTIJITTER_SWEEP_WRAPPER.read_text(encoding="utf-8")
+
+        for script_source in (train_source, eval_source):
+            self.assertIn(BUTTONPRESS_ALIGNED_ANTIJITTER_TASK_ID, script_source)
+            self.assertIn(STAGED250_REF, script_source)
+            self.assertIn("env.episode_length_s=10.0", script_source)
+            self.assertIn("/root/autodl-tmp/envs/isaaclab", script_source)
+            self.assertIn("/root/autodl-tmp/IsaacLab", script_source)
+            self.assertNotIn("FIXED_BASE", script_source)
+            self.assertNotIn("UpperBody", script_source)
+            self.assertNotIn("BodyGroupAntiJitter", script_source)
+
+        self.assertIn('MAX_ITERATIONS="${2:-300}"', train_source)
+        self.assertIn('RESUME_ACTION_STD="${6:-0.0015}"', train_source)
+        self.assertIn('NUM_ENVS="${2:-27}"', eval_source)
+        self.assertIn('NUM_STEPS="${3:-500}"', eval_source)
+        self.assertIn('VIDEO_LENGTH="${6:-500}"', eval_source)
+        self.assertIn("remote_wall_brush_buttonpress_aligned_antijitter_eval.sh", sweep_source)
 
     def test_agile_base_action_freezes_lower_body_and_trains_right_arm_residual(self):
         source = _source()
