@@ -10,6 +10,8 @@ This records the first IsaacLab Newton sim-to-sim validation run for the G1 wall
 - PhysX baseline checkout: `/root/autodl-tmp/IsaacLab`
 - Newton checkout used for validation: `/root/autodl-tmp/IsaacLab-newton`
 
+For rebuild instructions from a fresh machine, see `docs/newton_wall_brush_reproduce.md`.
+
 ## Contract
 
 The Newton validation path uses the same policy contract as the PhysX task.
@@ -23,6 +25,8 @@ The Newton run required two important compatibility fixes:
 
 - IsaacLab/Newton state tensors may be returned as `ProxyArray`, so the eval/play scripts convert those reads with `value.torch` when available.
 - Newton/IsaacLab internals use xyzw quaternions, while this trained policy expects the `target_ref_*` observation quaternion slot in the original wxyz convention.
+
+The exact checkpoint was trained under the AntiJitter task variant, and the reproduction config defaults to that task name in `configs/newton_wall_brush_versions.env`.
 
 ## Results
 
