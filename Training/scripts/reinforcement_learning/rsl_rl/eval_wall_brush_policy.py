@@ -55,6 +55,11 @@ parser.add_argument(
     help="Use an upright root orientation when locking deterministic priors. Auto enables this for stance tasks.",
 )
 parser.add_argument("--root_offset_z", type=float, default=0.0, help="Additional z offset for deterministic prior reset.")
+parser.add_argument(
+    "--default_stand_reset",
+    action="store_true",
+    help="Reset robot to its default standing root and joints instead of the deterministic motion-prior state.",
+)
 parser.add_argument("--coverage_threshold", type=float, default=0.70, help="Training-milestone row coverage threshold.")
 parser.add_argument("--target_coverage_threshold", type=float, default=0.85, help="Acceptance-target row coverage threshold.")
 parser.add_argument("--backtracking_threshold", type=float, default=0.15, help="Allowed active-stroke backward-progress ratio.")
@@ -265,6 +270,35 @@ def _reset_to_prior_ids(raw_env, num_envs: int):
         orientations[:, 0] = 1.0
     else:
         orientations = motion_res["root_rot"]
+    velocities = torch.zeros((num_envs, 6), device=device)
+    asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
+    asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
+
+    raw_env.scene.write_data_to_sim()
+    raw_env.sim.forward()
+    raw_env.scene.update(raw_env.step_dt)
+    return prior_ids.clone()
+
+
+def _reset_to_default_stand(raw_env, num_envs: int):
+    """Place each env at the asset default standing state while preserving deterministic prior IDs."""
+    device = raw_env.device
+    env_ids = torch.arange(num_envs, device=device)
+    prior_ids = torch.arange(num_envs, device=device, dtype=torch.long) % int(raw_env.total_motions)
+    raw_env.motion_ids[env_ids] = prior_ids
+    raw_env.start_motion_times[env_ids] = 0.0
+    raw_env.episode_length_buf[env_ids] = 0
+
+    asset: Articulation = raw_env.scene["robot"]
+    joint_pos = _as_torch(asset.data.default_joint_pos)[env_ids].clone()
+    joint_vel = _as_torch(asset.data.default_joint_vel)[env_ids].clone()
+    asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+
+    root_state = _as_torch(asset.data.default_root_state)[env_ids].clone()
+    positions = root_state[:, :3] + raw_env.scene.env_origins[env_ids]
+    positions[:, 2] += float(args_cli.root_offset_z)
+    orientations = torch.zeros((num_envs, 4), device=device)
+    orientations[:, 0] = 1.0
     velocities = torch.zeros((num_envs, 6), device=device)
     asset.write_root_pose_to_sim(torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
     asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
@@ -588,7 +622,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         policy = runner.get_inference_policy(device=env.unwrapped.device)
 
     raw = env.unwrapped
-    prior_ids = _reset_to_prior_ids(raw, args_cli.num_envs)
+    if args_cli.default_stand_reset:
+        prior_ids = _reset_to_default_stand(raw, args_cli.num_envs)
+    else:
+        prior_ids = _reset_to_prior_ids(raw, args_cli.num_envs)
     obs = _policy_obs(env)
     trace_prior_ids = {int(value) for value in args_cli.trace_prior_ids.split(",") if value.strip()}
     trace_stride = max(1, int(args_cli.trace_stride))
@@ -1188,6 +1225,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     summary = {
         "task": args_cli.task,
         "checkpoint": resume_path,
+        "reset_mode": "default_stand" if args_cli.default_stand_reset else "motion_prior",
         "action_mode": (
             "reference_actions"
             if args_cli.reference_actions
