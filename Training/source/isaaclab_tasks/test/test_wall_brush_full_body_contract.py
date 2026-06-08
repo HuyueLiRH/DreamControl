@@ -111,6 +111,33 @@ STANDSTILL_ROW_CONTACT_TASK_ID = (
 )
 AGILE_BASE_CLASS_NAME = "G1WallBrushNoWallCollisionDreamControlAgileBaseEnvCfg"
 AGILE_BASE_TASK_ID = "Isaac-Motion-Tracking-Wall-Brush-NoWallCollision-DreamControl-AgileBase-v0"
+FALCON_RESIDUAL8D_CLASS_NAME = "G1WallBrushNoWallCollisionDreamControlFalconResidual8DEnvCfg"
+FALCON_RESIDUAL8D_REWARDS_CLASS_NAME = "G1WallBrushDreamControlFalconResidual8DRewards"
+FALCON_RESIDUAL8D_TASK_ID = (
+    "Isaac-Motion-Tracking-Wall-Brush-NoWallCollision-DreamControl-FalconResidual8D-v0"
+)
+FALCON_RESIDUAL8D_TRAIN_WRAPPER = _first_existing(
+    LOCAL_SCRIPTS_ROOT / "remote_wall_brush_falcon_residual8d_train.sh",
+    ARTIFACT_ROOT / "remote_wall_brush_falcon_residual8d_train.sh",
+)
+FALCON_RESIDUAL8D_EVAL_WRAPPER = _first_existing(
+    LOCAL_SCRIPTS_ROOT / "remote_wall_brush_falcon_residual8d_eval.sh",
+    ARTIFACT_ROOT / "remote_wall_brush_falcon_residual8d_eval.sh",
+)
+FALCON_RESIDUAL8D_SMOKE_WRAPPER = _first_existing(
+    LOCAL_SCRIPTS_ROOT / "remote_wall_brush_falcon_residual8d_smoke.sh",
+    ARTIFACT_ROOT / "remote_wall_brush_falcon_residual8d_smoke.sh",
+)
+FALCON_RESIDUAL8D_JOINTS = [
+    "waist_yaw_joint",
+    "right_shoulder_pitch_joint",
+    "right_shoulder_roll_joint",
+    "right_shoulder_yaw_joint",
+    "right_elbow_joint",
+    "right_wrist_roll_joint",
+    "right_wrist_pitch_joint",
+    "right_wrist_yaw_joint",
+]
 FORBIDDEN_TASK_ID = "Isaac-Motion-Tracking-Wall-Brush-NoWallCollision-StandPrepIK-UpperBodyResidualAnchor-v0"
 STAGED250_REF = (
     "../TrajGen/sample/Wall_Brush_27/"
@@ -533,6 +560,88 @@ class WallBrushFullBodyContractTest(unittest.TestCase):
         self.assertIn("class G1WallBrushDreamControlAgileBaseRewards(G1WallBrushResidualAnchorRegularizedRewards):", rewards_block)
         self.assertIn("lower_body_action_reference = None", rewards_block)
         self.assertIn("right_arm_action_reference = None", rewards_block)
+
+    def test_falcon_residual8d_task_is_new_root_unlocked_agile_teacher_task(self):
+        source = _source()
+        init_source = INIT_SOURCE.read_text(encoding="utf-8")
+        env_block = _class_block(source, FALCON_RESIDUAL8D_CLASS_NAME)
+        rewards_block = _class_block(source, FALCON_RESIDUAL8D_REWARDS_CLASS_NAME)
+        actions_block = _class_block(source, "WallBrushFalconResidual8DActionsCfg")
+
+        self.assertIn(
+            f"class {FALCON_RESIDUAL8D_CLASS_NAME}(G1WallBrushNoWallCollisionDreamControlEnvCfg):",
+            env_block,
+        )
+        self.assertIn(
+            "actions: WallBrushFalconResidual8DActionsCfg = WallBrushFalconResidual8DActionsCfg()",
+            env_block,
+        )
+        self.assertIn("rewards: G1WallBrushDreamControlFalconResidual8DRewards", env_block)
+        self.assertIn("G1_MINIMAL_CFG.replace", env_block)
+        self.assertIn("fix_root_link = False", env_block)
+        self.assertIn("self.decimation = 4", env_block)
+        self.assertIn("self.episode_length_s = 10.0", env_block)
+        self.assertIn("self.sim.dt = 0.005", env_block)
+        self.assertNotIn("G1_MINIMAL_CFG_FIXED_BASE", env_block)
+        self.assertNotIn("fix_root_link = True", env_block)
+
+        self.assertIn("joint_pos = WallBrushMotionResidualJointPositionActionCfg", actions_block)
+        self.assertIn("agile_lower_body = WallBrushAgileLowerBodyActionCfg", actions_block)
+        for joint_name in FALCON_RESIDUAL8D_JOINTS:
+            self.assertIn(f'"{joint_name}"', actions_block)
+        self.assertNotIn('"waist_roll_joint"', actions_block)
+        self.assertNotIn('"waist_pitch_joint"', actions_block)
+        self.assertIn("scale=0.06", actions_block)
+        self.assertIn('reference_mode="current"', actions_block)
+        self.assertIn(AGILE_TEACHER_POLICY, source)
+
+        self.assertIn("virtual_wall_force_band = RewTerm", rewards_block)
+        self.assertIn("brush_normal_alignment = RewTerm", rewards_block)
+        self.assertIn("residual_action_l2 = RewTerm(func=mdp.action_l2, weight=-0.025)", rewards_block)
+        self.assertIn("action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.012)", rewards_block)
+        self.assertIn("action_accel_l2 = RewTerm(func=action_accel_l2, weight=-0.004)", rewards_block)
+        self.assertIn("left_arm_wall_clearance = RewTerm", rewards_block)
+        self.assertIn("self_collision_proxy = RewTerm", rewards_block)
+
+        self.assertIn(f'id="{FALCON_RESIDUAL8D_TASK_ID}"', init_source)
+        self.assertIn(f"motion_tracking_wall_brush_env:{FALCON_RESIDUAL8D_CLASS_NAME}", init_source)
+        self.assertIn("rsl_rl_ppo_cfg:G1WallBrushPPORunnerCfg", init_source)
+        self.assertNotIn("ButtonPressAlignedBodyGroupAntiJitter", source + init_source)
+
+    def test_falcon_residual8d_wrappers_use_existing_env_and_no_checkpoint_zero_residual(self):
+        eval_script = EVAL_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("--skip_checkpoint", eval_script)
+        self.assertIn('resume_path = "zero_residual_no_checkpoint"', eval_script)
+        self.assertIn("args_cli.skip_checkpoint", eval_script)
+
+        for wrapper in (
+            FALCON_RESIDUAL8D_TRAIN_WRAPPER,
+            FALCON_RESIDUAL8D_EVAL_WRAPPER,
+            FALCON_RESIDUAL8D_SMOKE_WRAPPER,
+        ):
+            self.assertTrue(wrapper.exists(), f"{wrapper} is missing")
+            source = wrapper.read_text(encoding="utf-8")
+            self.assertIn(FALCON_RESIDUAL8D_TASK_ID, source)
+            self.assertIn(STAGED250_REF, source)
+            self.assertIn("/root/autodl-tmp/envs/isaaclab", source)
+            self.assertIn("/root/autodl-tmp/IsaacLab", source)
+            self.assertIn("env.episode_length_s=10.0", source)
+            self.assertNotIn("ButtonPressAlignedAntiJitter", source)
+            self.assertNotIn("BodyGroupAntiJitter", source)
+            self.assertNotIn("FIXED_BASE", source)
+            self.assertNotIn("UpperBody", source)
+
+        eval_source = FALCON_RESIDUAL8D_EVAL_WRAPPER.read_text(encoding="utf-8")
+        smoke_source = FALCON_RESIDUAL8D_SMOKE_WRAPPER.read_text(encoding="utf-8")
+        train_source = FALCON_RESIDUAL8D_TRAIN_WRAPPER.read_text(encoding="utf-8")
+        self.assertIn('ZERO_ACTIONS="${5:-1}"', eval_source)
+        self.assertIn("--skip_checkpoint", eval_source)
+        self.assertIn("--zero_actions", eval_source)
+        self.assertIn('MAX_ITERATIONS="${2:-1}"', smoke_source)
+        self.assertIn("bash scripts/remote_wall_brush_falcon_residual8d_eval.sh", smoke_source)
+        self.assertIn('MAX_ITERATIONS="${2:-5}"', train_source)
+        self.assertIn("RESUME_ARGS=()", train_source)
+        self.assertNotIn("--resume", train_source)
 
 
 if __name__ == "__main__":
