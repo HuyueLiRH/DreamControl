@@ -78,6 +78,11 @@ parser.add_argument(
     default=1.0,
     help="Low-pass action blend factor. 1.0 disables smoothing; lower values use more previous action.",
 )
+parser.add_argument(
+    "--skip_checkpoint",
+    action="store_true",
+    help="Create the environment and evaluate zero/reference actions without resolving or loading a checkpoint.",
+)
 cli_args.add_rsl_rl_args(parser)
 AppLauncher.add_app_launcher_args(parser)
 args_cli, hydra_args = parser.parse_known_args()
@@ -528,7 +533,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env_cfg.observations.policy.enable_corruption = False
 
     log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
-    if args_cli.use_pretrained_checkpoint:
+    if args_cli.skip_checkpoint:
+        resume_path = "zero_residual_no_checkpoint"
+    elif args_cli.use_pretrained_checkpoint:
         resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name)
         if not resume_path:
             raise FileNotFoundError(f"No published pretrained checkpoint for {train_task_name}")
@@ -537,13 +544,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     else:
         resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
 
-    env_cfg.log_dir = os.path.dirname(resume_path)
+    env_cfg.log_dir = log_root_path if args_cli.skip_checkpoint else os.path.dirname(resume_path)
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
     if isinstance(env.unwrapped, DirectMARLEnv):
         env = multi_agent_to_single_agent(env)
     env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
-    if args_cli.zero_actions or args_cli.reference_actions:
+    if args_cli.zero_actions or args_cli.reference_actions or args_cli.skip_checkpoint:
         runner = None
         policy = None
     else:
@@ -720,7 +727,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             eval_steps += alive_before_step.float()
             if args_cli.reference_actions:
                 actions = action_mode_reference(raw)
-            elif args_cli.zero_actions:
+            elif args_cli.zero_actions or args_cli.skip_checkpoint:
                 actions = torch.zeros((num_envs, action_dim), device=device)
             else:
                 actions = policy(obs)
@@ -1151,7 +1158,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         "task": args_cli.task,
         "checkpoint": resume_path,
         "action_mode": (
-            "reference_actions" if args_cli.reference_actions else ("zero_residual" if args_cli.zero_actions else "checkpoint_policy")
+            "reference_actions"
+            if args_cli.reference_actions
+            else ("zero_residual" if args_cli.zero_actions or args_cli.skip_checkpoint else "checkpoint_policy")
         ),
         "action_smoothing_alpha": smoothing_alpha,
         "num_envs": num_envs,

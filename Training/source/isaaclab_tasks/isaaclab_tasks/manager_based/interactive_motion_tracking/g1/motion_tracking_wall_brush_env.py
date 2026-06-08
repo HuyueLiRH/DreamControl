@@ -228,6 +228,16 @@ RIGHT_ARM_JOINTS_MASK = [
     1.0,
     1.0,
 ]
+FALCON_RESIDUAL8D_JOINTS = [
+    "waist_yaw_joint",
+    "right_shoulder_pitch_joint",
+    "right_shoulder_roll_joint",
+    "right_shoulder_yaw_joint",
+    "right_elbow_joint",
+    "right_wrist_roll_joint",
+    "right_wrist_pitch_joint",
+    "right_wrist_yaw_joint",
+]
 AGILE_LOWER_BODY_JOINTS = [
     "left_hip_pitch_joint",
     "left_hip_roll_joint",
@@ -1138,6 +1148,67 @@ def wall_contact_force_above_threshold(
     near_wall_margin: float = 0.22,
 ) -> torch.Tensor:
     return _wall_contact_force(env, sensor_cfg, asset_cfg, near_wall_margin) > threshold
+
+
+def virtual_wall_normal_force_n(
+    env,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot", body_names=[BRUSH_LINK]),
+    contact_band_m: float = 0.04,
+    max_force_n: float = 4.0,
+) -> torch.Tensor:
+    motion_res = _motion_state(env)
+    if motion_res is None:
+        return _zero_reward(env)
+    tip = _brush_tip_pos(env, asset_cfg, motion_res)
+    wall_x = motion_res["wall_mid"][:, 0]
+    wall_x_error = tip[:, 0] - wall_x
+    contact_band_m = max(float(contact_band_m), 1e-6)
+    max_force_n = max(float(max_force_n), 0.0)
+    proximity = (contact_band_m - torch.abs(wall_x_error)).clamp_min(0.0) / contact_band_m
+    return torch.clamp(max_force_n * proximity, max=max_force_n)
+
+
+def virtual_wall_force_band_violation(
+    env,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot", body_names=[BRUSH_LINK]),
+    contact_band_m: float = 0.04,
+    max_force_n: float = 4.0,
+    target_force_n: float = 2.0,
+    tolerance_n: float = 0.6,
+    active_only: bool = True,
+) -> torch.Tensor:
+    motion_res = _motion_state(env)
+    if motion_res is None:
+        return _zero_reward(env)
+    force = virtual_wall_normal_force_n(env, asset_cfg, contact_band_m, max_force_n)
+    tolerance_n = max(float(tolerance_n), 1e-6)
+    error = (torch.abs(force - float(target_force_n)) - tolerance_n).clamp_min(0.0)
+    penalty = torch.square(error / tolerance_n)
+    if active_only:
+        penalty = penalty * motion_res["stroke_active"].float()
+    return penalty
+
+
+def brush_normal_alignment_l2(
+    env,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot", body_names=[BRUSH_LINK]),
+    local_axis: tuple[float, float, float] = (1.0, 0.0, 0.0),
+    active_only: bool = True,
+) -> torch.Tensor:
+    motion_res = _motion_state(env)
+    if motion_res is None:
+        return _zero_reward(env)
+    asset: Articulation = env.scene[asset_cfg.name]
+    body_id = _body_id(asset, asset_cfg)
+    quat = asset.data.body_state_w[:, body_id, 3:7]
+    axis = torch.tensor(local_axis, device=env.device, dtype=quat.dtype).view(1, 3).repeat(env.scene.num_envs, 1)
+    brush_normal = math_utils.quat_apply(quat, axis)
+    wall_normal = torch.tensor([1.0, 0.0, 0.0], device=env.device, dtype=quat.dtype).view(1, 3)
+    alignment = torch.abs(torch.sum(brush_normal * wall_normal, dim=1)).clamp(0.0, 1.0)
+    penalty = torch.square(1.0 - alignment)
+    if active_only:
+        penalty = penalty * motion_res["stroke_active"].float()
+    return penalty
 
 
 def self_collision_proxy_violation(
@@ -2510,6 +2581,85 @@ class G1WallBrushDreamControlAgileBaseRewards(G1WallBrushResidualAnchorRegulariz
     residual_action_l2 = RewTerm(func=mdp.action_l2, weight=-0.02)
 
 
+@configclass
+class G1WallBrushDreamControlFalconResidual8DRewards(G1WallBrushDreamControlButtonPressAlignedRewards):
+    """FALCON-style dual-agent residual rewards with virtual wall-force shaping."""
+
+    dof_torques_l2 = RewTerm(
+        func=mdp.joint_torques_l2,
+        weight=-1.5e-7,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_.*", ".*_knee_joint", ".*_ankle_.*"])},
+    )
+    dof_acc_l2 = RewTerm(
+        func=mdp.joint_acc_l2,
+        weight=-2.0e-7,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JointNamesOrder, preserve_order=True)},
+    )
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.012)
+    action_accel_l2 = RewTerm(func=action_accel_l2, weight=-0.004)
+    residual_action_l2 = RewTerm(func=mdp.action_l2, weight=-0.025)
+    brush_tip_contact = RewTerm(
+        func=brush_tip_wall_contact,
+        weight=2.2,
+        params={"asset_cfg": SceneEntityCfg("robot", body_names=[BRUSH_LINK]), "broad_std": 0.12, "fine_std": 0.04},
+    )
+    brush_tip_contact_band = RewTerm(
+        func=brush_tip_wall_band_violation,
+        weight=-1.0,
+        params={"asset_cfg": SceneEntityCfg("robot", body_names=[BRUSH_LINK]), "target_band": 0.04, "scale": 0.08},
+    )
+    brush_tip_row = RewTerm(
+        func=brush_tip_row_accuracy,
+        weight=1.2,
+        params={"asset_cfg": SceneEntityCfg("robot", body_names=[BRUSH_LINK]), "broad_std": 0.24, "fine_std": 0.08},
+    )
+    brush_tip_progress = RewTerm(
+        func=brush_tip_line_progress,
+        weight=0.5,
+        params={"asset_cfg": SceneEntityCfg("robot", body_names=[BRUSH_LINK]), "broad_std": 0.30, "fine_std": 0.12},
+    )
+    virtual_wall_force_band = RewTerm(
+        func=virtual_wall_force_band_violation,
+        weight=-0.15,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=[BRUSH_LINK]),
+            "contact_band_m": 0.04,
+            "max_force_n": 4.0,
+            "target_force_n": 2.0,
+            "tolerance_n": 0.6,
+            "active_only": True,
+        },
+    )
+    brush_normal_alignment = RewTerm(
+        func=brush_normal_alignment_l2,
+        weight=-0.05,
+        params={"asset_cfg": SceneEntityCfg("robot", body_names=[BRUSH_LINK]), "active_only": True},
+    )
+    left_arm_wall_clearance = RewTerm(
+        func=body_wall_clearance_violation,
+        weight=-6.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=LEFT_ARM_LINKS, preserve_order=True),
+            "min_clearance": 0.08,
+            "active_only": False,
+        },
+    )
+    self_collision_proxy = RewTerm(
+        func=self_collision_proxy_violation,
+        weight=-45.0,
+        params={"asset_cfg": SceneEntityCfg("robot")},
+    )
+    nonbrush_wall_clearance = RewTerm(
+        func=body_wall_clearance_violation,
+        weight=-8.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=NONBRUSH_LINKS, preserve_order=True),
+            "min_clearance": 0.08,
+            "active_only": False,
+        },
+    )
+
+
 class G1WallBrushTargetedLowRowRewards(G1WallBrushResidualAnchorRegularizedRewards):
     """Difficulty-focused shaping for low/near brush rows without adding physical wall collision."""
 
@@ -3063,6 +3213,28 @@ class WallBrushAgileBaseActionsCfg(ActionsCfgBase):
 
 
 @configclass
+class WallBrushFalconResidual8DActionsCfg(ActionsCfgBase):
+    joint_pos = WallBrushMotionResidualJointPositionActionCfg(
+        asset_name="robot",
+        joint_names=[
+            "waist_yaw_joint",
+            "right_shoulder_pitch_joint",
+            "right_shoulder_roll_joint",
+            "right_shoulder_yaw_joint",
+            "right_elbow_joint",
+            "right_wrist_roll_joint",
+            "right_wrist_pitch_joint",
+            "right_wrist_yaw_joint",
+        ],
+        preserve_order=True,
+        scale=0.06,
+        use_default_offset=False,
+        reference_mode="current",
+    )
+    agile_lower_body = WallBrushAgileLowerBodyActionCfg(asset_name="robot")
+
+
+@configclass
 class WallBrushUpperBodyCurrentResidualActionsCfg(ActionsCfgBase):
     joint_pos = WallBrushMotionResidualJointPositionActionCfg(
         asset_name="robot",
@@ -3344,6 +3516,23 @@ class G1WallBrushNoWallCollisionDreamControlAgileBaseEnvCfg(G1WallBrushNoWallCol
 
     actions: WallBrushAgileBaseActionsCfg = WallBrushAgileBaseActionsCfg()
     rewards: G1WallBrushDreamControlAgileBaseRewards = G1WallBrushDreamControlAgileBaseRewards()
+    terminations: WallBrushDreamControlTerminationsCfg = WallBrushDreamControlTerminationsCfg()
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.scene.robot = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.spawn.articulation_props.fix_root_link = False
+        self.decimation = 4
+        self.episode_length_s = 10.0
+        self.sim.dt = 0.005
+
+
+@configclass
+class G1WallBrushNoWallCollisionDreamControlFalconResidual8DEnvCfg(G1WallBrushNoWallCollisionDreamControlEnvCfg):
+    """Root-unlocked FALCON-style wall-brush task with AGILE legs and 8D upper residuals."""
+
+    actions: WallBrushFalconResidual8DActionsCfg = WallBrushFalconResidual8DActionsCfg()
+    rewards: G1WallBrushDreamControlFalconResidual8DRewards = G1WallBrushDreamControlFalconResidual8DRewards()
     terminations: WallBrushDreamControlTerminationsCfg = WallBrushDreamControlTerminationsCfg()
 
     def __post_init__(self):
