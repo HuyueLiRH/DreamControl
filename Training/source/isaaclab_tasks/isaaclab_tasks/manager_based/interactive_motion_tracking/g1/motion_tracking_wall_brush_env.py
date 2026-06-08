@@ -92,6 +92,9 @@ RIGHT_HAND_LINKS = [
     "right_hand_thumb_1_link",
     "right_hand_thumb_2_link",
 ]
+RIGHT_HAND_NONBRUSH_LINKS = [
+    link for link in RIGHT_HAND_LINKS if link != BRUSH_LINK
+]
 RIGHT_ARM_LINKS = [
     "right_shoulder_pitch_link",
     "right_shoulder_roll_link",

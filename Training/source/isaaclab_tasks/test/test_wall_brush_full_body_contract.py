@@ -1,4 +1,5 @@
 import re
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -10,6 +11,11 @@ SOURCE_ROOT = Path(__file__).resolve().parents[1]
 def _find_repo_root(start: Path) -> Path:
     for candidate in (start, *start.parents):
         if (candidate / "scripts").exists() and (candidate / "rl_references").exists():
+            return candidate
+        if (
+            (candidate / "scripts" / "reinforcement_learning" / "rsl_rl").exists()
+            and (candidate / "source" / "isaaclab_tasks").exists()
+        ):
             return candidate
         if (candidate / "Training").exists() and (candidate / "TrajGen").exists():
             return candidate
@@ -132,6 +138,15 @@ def _class_block(source: str, name: str) -> str:
 
 
 class WallBrushFullBodyContractTest(unittest.TestCase):
+    def test_find_repo_root_recognizes_remote_isaaclab_layout(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir) / "IsaacLab"
+            test_dir = root / "source" / "isaaclab_tasks" / "test"
+            test_dir.mkdir(parents=True)
+            (root / "scripts" / "reinforcement_learning" / "rsl_rl").mkdir(parents=True)
+
+            self.assertEqual(_find_repo_root(test_dir), root)
+
     def test_full_body_task_class_is_unlocked_27dof_and_uses_staged250_prior(self):
         block = _class_block(_source(), CLASS_NAME)
         normalized_block = block.replace('"\n            "', "")
@@ -440,6 +455,8 @@ class WallBrushFullBodyContractTest(unittest.TestCase):
         self.assertIn("brush_tip_smoothness = RewTerm", rewards_block)
         self.assertIn("self_collision_proxy = RewTerm", rewards_block)
         self.assertIn("nonbrush_wall_clearance = RewTerm", rewards_block)
+        self.assertIn("RIGHT_HAND_NONBRUSH_LINKS = [", source)
+        self.assertIn("for link in RIGHT_HAND_LINKS if link != BRUSH_LINK", source)
         self.assertIn("right_hand_nonbrush_wall_clearance = RewTerm", rewards_block)
 
         self.assertIn(
