@@ -111,6 +111,22 @@ def _ratio(numerator: int, denominator: int) -> float:
     return numerator / denominator
 
 
+def virtual_wall_normal_force_n(wall_x_error_m: float, *, contact_band_m: float, max_force_n: float) -> float:
+    if contact_band_m <= 0.0:
+        raise ValueError("contact_band_m must be positive")
+    if max_force_n < 0.0:
+        raise ValueError("max_force_n must be non-negative")
+
+    penetration_fraction = (contact_band_m - wall_x_error_m) / contact_band_m
+    return max(0.0, min(max_force_n, max_force_n * penetration_fraction))
+
+
+def virtual_wall_force_band_violation(force_n: float, *, target_force_n: float, tolerance_n: float) -> float:
+    if tolerance_n < 0.0:
+        raise ValueError("tolerance_n must be non-negative")
+    return max(0.0, abs(force_n - target_force_n) - tolerance_n)
+
+
 def _coverage(state: WallBrushEpisodeSuccess) -> float:
     if state.min_combined_phase is None or state.max_combined_phase is None:
         return 0.0

@@ -196,6 +196,66 @@ class WallBrushSuccessTest(unittest.TestCase):
         self.assertFalse(state.pending_success)
         self.assertFalse(state.countable_success)
 
+    def test_virtual_wall_normal_force_uses_proximity_band_without_physical_contact(self):
+        self.assertAlmostEqual(
+            wall_brush_success.virtual_wall_normal_force_n(
+                wall_x_error_m=0.20,
+                contact_band_m=0.04,
+                max_force_n=4.0,
+            ),
+            0.0,
+        )
+        self.assertAlmostEqual(
+            wall_brush_success.virtual_wall_normal_force_n(
+                wall_x_error_m=0.02,
+                contact_band_m=0.04,
+                max_force_n=4.0,
+            ),
+            2.0,
+        )
+        self.assertAlmostEqual(
+            wall_brush_success.virtual_wall_normal_force_n(
+                wall_x_error_m=0.0,
+                contact_band_m=0.04,
+                max_force_n=4.0,
+            ),
+            4.0,
+        )
+        self.assertAlmostEqual(
+            wall_brush_success.virtual_wall_normal_force_n(
+                wall_x_error_m=-0.02,
+                contact_band_m=0.04,
+                max_force_n=4.0,
+            ),
+            4.0,
+        )
+
+    def test_virtual_wall_force_band_violation_is_zero_inside_target_window(self):
+        self.assertAlmostEqual(
+            wall_brush_success.virtual_wall_force_band_violation(
+                force_n=1.9,
+                target_force_n=2.0,
+                tolerance_n=0.2,
+            ),
+            0.0,
+        )
+        self.assertAlmostEqual(
+            wall_brush_success.virtual_wall_force_band_violation(
+                force_n=2.5,
+                target_force_n=2.0,
+                tolerance_n=0.2,
+            ),
+            0.3,
+        )
+        self.assertAlmostEqual(
+            wall_brush_success.virtual_wall_force_band_violation(
+                force_n=1.5,
+                target_force_n=2.0,
+                tolerance_n=0.2,
+            ),
+            0.3,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
