@@ -240,49 +240,80 @@ FALCON_RESIDUAL8D_JOINTS = [
 ]
 AGILE_LOWER_BODY_JOINTS = [
     "left_hip_pitch_joint",
-    "left_hip_roll_joint",
-    "left_hip_yaw_joint",
-    "left_knee_joint",
-    "left_ankle_pitch_joint",
-    "left_ankle_roll_joint",
     "right_hip_pitch_joint",
+    "left_hip_roll_joint",
     "right_hip_roll_joint",
+    "left_hip_yaw_joint",
     "right_hip_yaw_joint",
+    "left_knee_joint",
     "right_knee_joint",
+    "left_ankle_pitch_joint",
     "right_ankle_pitch_joint",
+    "left_ankle_roll_joint",
     "right_ankle_roll_joint",
 ]
 AGILE_TEACHER_JOINT_OBS_ORDER = [
-    *AGILE_LOWER_BODY_JOINTS,
+    "left_hip_pitch_joint",
+    "right_hip_pitch_joint",
     "waist_yaw_joint",
+    "left_hip_roll_joint",
+    "right_hip_roll_joint",
     "waist_roll_joint",
+    "left_hip_yaw_joint",
+    "right_hip_yaw_joint",
     "waist_pitch_joint",
+    "left_knee_joint",
+    "right_knee_joint",
     "left_shoulder_pitch_joint",
-    "left_shoulder_roll_joint",
-    "left_shoulder_yaw_joint",
-    "left_elbow_joint",
-    "left_wrist_roll_joint",
-    "left_wrist_pitch_joint",
-    "left_wrist_yaw_joint",
     "right_shoulder_pitch_joint",
+    "left_ankle_pitch_joint",
+    "right_ankle_pitch_joint",
+    "left_shoulder_roll_joint",
     "right_shoulder_roll_joint",
+    "left_ankle_roll_joint",
+    "right_ankle_roll_joint",
+    "left_shoulder_yaw_joint",
     "right_shoulder_yaw_joint",
+    "left_elbow_joint",
     "right_elbow_joint",
+    "left_wrist_roll_joint",
     "right_wrist_roll_joint",
+    "left_wrist_pitch_joint",
     "right_wrist_pitch_joint",
+    "left_wrist_yaw_joint",
     "right_wrist_yaw_joint",
 ]
 AGILE_TEACHER_POLICY_PATH = (
     "/root/autodl-tmp/WBC-AGILE/agile/data/policy/velocity_height_g1/"
     "unitree_g1_velocity_height_teacher.pt"
 )
+AGILE_LOWER_BODY_POLICY_OUTPUT_SCALE_ORDERED = [
+    0.5475464463233948,
+    0.5475464463233948,
+    0.3506614565849304,
+    0.3506614565849304,
+    0.5475464463233948,
+    0.5475464463233948,
+    0.3506614565849304,
+    0.3506614565849304,
+    0.4385773241519928,
+    0.4385773241519928,
+    0.4385773241519928,
+    0.4385773241519928,
+]
 AGILE_LOWER_BODY_POLICY_OUTPUT_SCALE = {
-    ".*_hip_yaw_joint": 0.22,
-    ".*_hip_roll_joint": 0.22,
-    ".*_hip_pitch_joint": 0.22,
-    ".*_knee_joint": 0.17375,
-    ".*_ankle_pitch_joint": 0.625,
-    ".*_ankle_roll_joint": 0.625,
+    "left_hip_pitch_joint": 0.5475464463233948,
+    "right_hip_pitch_joint": 0.5475464463233948,
+    "left_hip_roll_joint": 0.3506614565849304,
+    "right_hip_roll_joint": 0.3506614565849304,
+    "left_hip_yaw_joint": 0.5475464463233948,
+    "right_hip_yaw_joint": 0.5475464463233948,
+    "left_knee_joint": 0.3506614565849304,
+    "right_knee_joint": 0.3506614565849304,
+    "left_ankle_pitch_joint": 0.4385773241519928,
+    "right_ankle_pitch_joint": 0.4385773241519928,
+    "left_ankle_roll_joint": 0.4385773241519928,
+    "right_ankle_roll_joint": 0.4385773241519928,
 }
 RIGHT_ARM_WITH_WAIST_JOINTS_MASK = [
     0.0,
@@ -571,14 +602,9 @@ class WallBrushAgileLowerBodyAction(ActionTerm):
         self._teacher_obs_joint_ids = torch.tensor(self._teacher_obs_joint_ids, device=self.device, dtype=torch.long)
         self._teacher_obs_valid_ids = torch.tensor(self._teacher_obs_valid_ids, device=self.device, dtype=torch.long)
 
-        self._policy_output_scale = torch.ones(self.num_envs, self._AGILE_TEACHER_OUTPUT_DIM, device=self.device)
-        for idx, joint_name in enumerate(self._joint_names):
-            if "hip" in joint_name:
-                self._policy_output_scale[:, idx] = 0.22
-            elif "knee" in joint_name:
-                self._policy_output_scale[:, idx] = 0.17375
-            elif "ankle" in joint_name:
-                self._policy_output_scale[:, idx] = 0.625
+        scale_values = [float(self.cfg.policy_output_scale[joint_name]) for joint_name in self._joint_names]
+        self._policy_output_scale = torch.tensor(scale_values, device=self.device, dtype=torch.float32).view(1, -1)
+        self._policy_output_scale = self._policy_output_scale.repeat(self.num_envs, 1)
         self._policy_output_offset = self._asset.data.default_joint_pos[:, self._joint_ids].clone()
 
     @property
@@ -3165,7 +3191,7 @@ class WallBrushAgileLowerBodyActionCfg(ActionTermCfg):
     class_type: type[ActionTerm] = WallBrushAgileLowerBodyAction
     joint_names: list[str] = AGILE_LOWER_BODY_JOINTS
     policy_path: str = "/root/autodl-tmp/WBC-AGILE/agile/data/policy/velocity_height_g1/unitree_g1_velocity_height_teacher.pt"
-    fixed_command: tuple[float, float, float, float] = (0.0, 0.05, 0.0, 0.70)
+    fixed_command: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.70)
     policy_output_scale: dict[str, float] = AGILE_LOWER_BODY_POLICY_OUTPUT_SCALE
 
 

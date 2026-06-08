@@ -1,3 +1,4 @@
+import ast
 import re
 import tempfile
 import unittest
@@ -159,9 +160,45 @@ def _class_block(source: str, name: str) -> str:
     match = re.search(rf"^class {name}(?:\([^)]+\))?:\n", source, flags=re.MULTILINE)
     if not match:
         raise AssertionError(f"{name} is not defined")
-    next_match = re.search(r"^class \w+(?:\([^)]+\))?:\n", source[match.end() :], flags=re.MULTILINE)
+    next_match = re.search(
+        r"^(?:@\w+(?:\([^)]*\))?\n)*class \w+(?:\([^)]+\))?:\n",
+        source[match.end() :],
+        flags=re.MULTILINE,
+    )
     end = match.end() + next_match.start() if next_match else len(source)
     return source[match.start() : end]
+
+
+def _literal_assignments(source: str) -> dict[str, object]:
+    tree = ast.parse(source)
+    body = tree.body[0].body if len(tree.body) == 1 and isinstance(tree.body[0], ast.ClassDef) else tree.body
+    values: dict[str, object] = {}
+
+    def resolve(node: ast.AST):
+        if isinstance(node, ast.List):
+            items = []
+            for item in node.elts:
+                if isinstance(item, ast.Starred) and isinstance(item.value, ast.Name):
+                    items.extend(values[item.value.id])
+                else:
+                    items.append(resolve(item))
+            return items
+        if isinstance(node, ast.Tuple):
+            return tuple(resolve(item) for item in node.elts)
+        return ast.literal_eval(node)
+
+    for node in body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            try:
+                values[node.targets[0].id] = resolve(node.value)
+            except (ValueError, TypeError, KeyError):
+                pass
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            try:
+                values[node.target.id] = resolve(node.value)
+            except (ValueError, TypeError, KeyError):
+                pass
+    return values
 
 
 class WallBrushFullBodyContractTest(unittest.TestCase):
@@ -566,7 +603,7 @@ class WallBrushFullBodyContractTest(unittest.TestCase):
 
         self.assertIn("class_type: type[ActionTerm] = WallBrushAgileLowerBodyAction", action_cfg_block)
         self.assertIn(AGILE_TEACHER_POLICY, action_cfg_block)
-        self.assertIn("fixed_command: tuple[float, float, float, float] = (0.0, 0.05, 0.0, 0.70)", action_cfg_block)
+        self.assertIn("fixed_command: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.70)", action_cfg_block)
         self.assertIn("joint_names: list[str] = AGILE_LOWER_BODY_JOINTS", action_cfg_block)
 
         self.assertIn("joint_pos = WallBrushMotionResidualJointPositionActionCfg", actions_cfg_block)
@@ -578,6 +615,76 @@ class WallBrushFullBodyContractTest(unittest.TestCase):
         self.assertIn("class G1WallBrushDreamControlAgileBaseRewards(G1WallBrushResidualAnchorRegularizedRewards):", rewards_block)
         self.assertIn("lower_body_action_reference = None", rewards_block)
         self.assertIn("right_arm_action_reference = None", rewards_block)
+
+    def test_agile_teacher_contract_matches_exported_velocity_height_policy(self):
+        assignments = _literal_assignments(_source())
+        action_cfg_assignments = _literal_assignments(_class_block(_source(), "WallBrushAgileLowerBodyActionCfg"))
+
+        expected_action_order = [
+            "left_hip_pitch_joint",
+            "right_hip_pitch_joint",
+            "left_hip_roll_joint",
+            "right_hip_roll_joint",
+            "left_hip_yaw_joint",
+            "right_hip_yaw_joint",
+            "left_knee_joint",
+            "right_knee_joint",
+            "left_ankle_pitch_joint",
+            "right_ankle_pitch_joint",
+            "left_ankle_roll_joint",
+            "right_ankle_roll_joint",
+        ]
+        expected_obs_order = [
+            "left_hip_pitch_joint",
+            "right_hip_pitch_joint",
+            "waist_yaw_joint",
+            "left_hip_roll_joint",
+            "right_hip_roll_joint",
+            "waist_roll_joint",
+            "left_hip_yaw_joint",
+            "right_hip_yaw_joint",
+            "waist_pitch_joint",
+            "left_knee_joint",
+            "right_knee_joint",
+            "left_shoulder_pitch_joint",
+            "right_shoulder_pitch_joint",
+            "left_ankle_pitch_joint",
+            "right_ankle_pitch_joint",
+            "left_shoulder_roll_joint",
+            "right_shoulder_roll_joint",
+            "left_ankle_roll_joint",
+            "right_ankle_roll_joint",
+            "left_shoulder_yaw_joint",
+            "right_shoulder_yaw_joint",
+            "left_elbow_joint",
+            "right_elbow_joint",
+            "left_wrist_roll_joint",
+            "right_wrist_roll_joint",
+            "left_wrist_pitch_joint",
+            "right_wrist_pitch_joint",
+            "left_wrist_yaw_joint",
+            "right_wrist_yaw_joint",
+        ]
+        expected_action_scale = [
+            0.5475464463233948,
+            0.5475464463233948,
+            0.3506614565849304,
+            0.3506614565849304,
+            0.5475464463233948,
+            0.5475464463233948,
+            0.3506614565849304,
+            0.3506614565849304,
+            0.4385773241519928,
+            0.4385773241519928,
+            0.4385773241519928,
+            0.4385773241519928,
+        ]
+
+        self.assertEqual(assignments["AGILE_LOWER_BODY_JOINTS"], expected_action_order)
+        self.assertEqual(assignments["AGILE_TEACHER_JOINT_OBS_ORDER"], expected_obs_order)
+        self.assertIn("AGILE_LOWER_BODY_POLICY_OUTPUT_SCALE_ORDERED", assignments)
+        self.assertEqual(assignments["AGILE_LOWER_BODY_POLICY_OUTPUT_SCALE_ORDERED"], expected_action_scale)
+        self.assertEqual(action_cfg_assignments["fixed_command"], (0.0, 0.0, 0.0, 0.70))
 
     def test_falcon_residual8d_task_is_new_root_unlocked_agile_teacher_task(self):
         source = _source()
