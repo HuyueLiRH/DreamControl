@@ -297,6 +297,15 @@ class WallBrushFullBodyContractTest(unittest.TestCase):
         self.assertIn("--action_smoothing_alpha", play_source)
         self.assertIn("smooth_actions", play_source)
 
+    def test_eval_supports_default_joint_action_isolation_mode(self):
+        eval_source = EVAL_SCRIPT.read_text(encoding="utf-8")
+
+        self.assertIn("--default_actions", eval_source)
+        self.assertIn("action_mode_default_joint_targets", eval_source)
+        self.assertIn("default_joint_targets", eval_source)
+        self.assertIn("args_cli.default_actions", eval_source)
+        self.assertIn("args_cli.zero_actions or args_cli.skip_checkpoint", eval_source)
+
     def test_warmstart_task_stays_full_body_unlocked_and_softens_early_collision_penalty(self):
         source = _source()
         init_source = INIT_SOURCE.read_text(encoding="utf-8")

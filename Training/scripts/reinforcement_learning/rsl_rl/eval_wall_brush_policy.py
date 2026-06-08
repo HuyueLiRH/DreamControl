@@ -68,6 +68,11 @@ parser.add_argument(
 parser.add_argument("--trace_stride", type=int, default=5, help="Record one trace row every N policy steps.")
 parser.add_argument("--zero_actions", action="store_true", help="Evaluate deterministic zero residual actions instead of a checkpoint policy.")
 parser.add_argument(
+    "--default_actions",
+    action="store_true",
+    help="Drive JointPositionAction targets toward robot default joint positions for isolation tests.",
+)
+parser.add_argument(
     "--reference_actions",
     action="store_true",
     help="Drive JointPositionAction toward the time-aligned motion reference.",
@@ -512,6 +517,30 @@ def action_mode_reference(raw_env) -> torch.Tensor:
     return (ref_joint_pos - offset) / scale.clamp_min(1e-6)
 
 
+def _expand_action_value(value, like: torch.Tensor) -> torch.Tensor:
+    if torch.is_tensor(value):
+        value = value.to(device=like.device, dtype=like.dtype)
+        if value.shape == like.shape:
+            return value
+        return value.expand_as(like)
+    return torch.full_like(like, float(value))
+
+
+def action_mode_default_joint_targets(raw_env) -> torch.Tensor:
+    action_term = raw_env.action_manager.get_term("joint_pos")
+    action_dim = int(raw_env.action_manager.total_action_dim)
+    actions = torch.zeros((raw_env.num_envs, action_dim), device=raw_env.device)
+    desired_joint_pos = _as_torch(action_term._asset.data.default_joint_pos)[:, action_term._joint_ids]
+    if hasattr(action_term, "_reference_joint_pos"):
+        center_joint_pos = action_term._reference_joint_pos()
+    else:
+        center_joint_pos = _expand_action_value(action_term._offset, desired_joint_pos)
+    scale = _expand_action_value(action_term._scale, desired_joint_pos)
+    raw_joint_actions = (desired_joint_pos - center_joint_pos) / scale.clamp_min(1e-6)
+    actions[:, : raw_joint_actions.shape[1]] = raw_joint_actions
+    return actions
+
+
 def smooth_actions(actions: torch.Tensor, previous_actions, alpha: float) -> torch.Tensor:
     alpha = max(0.0, min(1.0, float(alpha)))
     if previous_actions is None or alpha >= 1.0:
@@ -550,7 +579,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env = multi_agent_to_single_agent(env)
     env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
-    if args_cli.zero_actions or args_cli.reference_actions or args_cli.skip_checkpoint:
+    if args_cli.zero_actions or args_cli.default_actions or args_cli.reference_actions or args_cli.skip_checkpoint:
         runner = None
         policy = None
     else:
@@ -727,6 +756,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             eval_steps += alive_before_step.float()
             if args_cli.reference_actions:
                 actions = action_mode_reference(raw)
+            elif args_cli.default_actions:
+                actions = action_mode_default_joint_targets(raw)
             elif args_cli.zero_actions or args_cli.skip_checkpoint:
                 actions = torch.zeros((num_envs, action_dim), device=device)
             else:
@@ -1160,7 +1191,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         "action_mode": (
             "reference_actions"
             if args_cli.reference_actions
-            else ("zero_residual" if args_cli.zero_actions or args_cli.skip_checkpoint else "checkpoint_policy")
+            else (
+                "default_joint_targets"
+                if args_cli.default_actions
+                else ("zero_residual" if args_cli.zero_actions or args_cli.skip_checkpoint else "checkpoint_policy")
+            )
         ),
         "action_smoothing_alpha": smoothing_alpha,
         "num_envs": num_envs,
