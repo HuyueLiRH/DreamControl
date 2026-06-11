@@ -25,7 +25,11 @@ def _find_repo_root(start: Path) -> Path:
 
 def _first_existing(*paths: Path) -> Path:
     for path in paths:
-        if path.exists():
+        try:
+            exists = path.exists()
+        except OSError:
+            exists = False
+        if exists:
             return path
     return paths[0]
 
